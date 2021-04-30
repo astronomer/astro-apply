@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@initial-dev
+      - uses: actions/checkout@master
       - name: Login to ECR
         id: ecr
         uses: elgohr/ecr-login-action@master

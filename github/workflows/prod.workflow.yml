@@ -1,8 +1,6 @@
 name: Production Workflow
 on:
-  push:
-    branches:
-      - initial-dev
+- push:
 jobs:
   build:
     runs-on: ubuntu-latest

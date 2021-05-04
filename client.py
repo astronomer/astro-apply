@@ -69,7 +69,9 @@ def compare(
     values_to_delete = copy.deepcopy(actual_values)
 
     for key in list(desired_values.keys()):
-        if key in actual_values and not DeepDiff(actual_values[key], desired_values[key]):
+        if key in actual_values and not DeepDiff(
+            actual_values[key], desired_values[key]
+        ):
             values_to_add.pop(key)
             values_to_delete.pop(key)
 
@@ -89,22 +91,25 @@ def main():
             )
         ).deployment
 
+        logging.info(
+            f"Applying Deployment Environment Variables for {actual_deployment.release_name}..."
+        )
+
         actual_env_vars = {
             env_var.key: env_var.__json_data__
             for env_var in actual_deployment.environment_variables
         }
         desired_env_vars = {
-            env_var["key"]: env_var for env_var in deployment["environmentVariables"]
+            env_var["key"]: env_var
+            for env_var in deployment.get("environmentVariables", [])
         }
+        env_vars_to_add, _ = compare(actual_env_vars, desired_env_vars)
+        logging.debug(f"Adding: {env_vars_to_add}\n Removing: {_} ")
 
         # env vars are one of the few things that don't have an add or delete function in houston
         # updateEnvVars appears to be declarative-ish
-        logging.info(
-            f"Applying Deployment Environment Variables for {actual_deployment.release_name}..."
-        )
-        env_vars_to_add, _ = compare(actual_env_vars, desired_env_vars)
-
-        if env_vars_to_add:
+        # we check if _ has elements for case where all env_vars are being removed
+        if env_vars_to_add or _:
             env_vars_to_add = [
                 schema.InputEnvironmentVariable(
                     key=value["key"], value=value["value"], is_secret=value["isSecret"]

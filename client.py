@@ -4,7 +4,8 @@ Run `sh update-schema.sh` to update houston schema
 import yaml
 import os
 import logging
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
+import copy
 
 from dotenv import dotenv_values
 
@@ -14,19 +15,8 @@ from sgqlc.operation import Operation
 
 from houston_schema import houston_schema as schema
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
-# WORKSPACE_FIELDS = ['id', 'label', 'description']
-EXCLUDED_DEPLOYMENT_FIELDS = [
-    "role_bindings",
-    "urls",
-    "alert_emails",
-    "properties",
-    "created_at",
-    "updated_at",
-    "description",
-    "service_accounts",
-]
 REQUIRED_VARS = [
     "BASEURL",  # e.g.  astro.mydomain.com
     "TOKEN",  # either a service account token or a temporary one obtained from app.BASEURL/token
@@ -65,23 +55,25 @@ def run(fn, is_mutation: bool = False, **kwargs):
 
 
 def compare(
-    actual: Dict[str, dict], desired: Dict[str, dict]
-) -> Tuple[Dict[str, dict], Dict[str, dict]]:
+    actual_values: Optional[Dict[str, dict]], desired_values: Optional[Dict[str, dict]]
+) -> Tuple[dict, dict]:
     """
-    Compares current values with values from config, and returns a dict of items to add, and a dict of items to delete
+    Compares current values with values from config against current configuration.
+    Returns a dict of items to add, and a dict of items to delete so they can be passed to Houston
     """
 
-    to_add = desired.copy()
-    to_delete = actual.copy()
+    desired_values = desired_values or {}
+    actual_values = actual_values or {}
 
-    for key in list(desired.keys()):
-        if key in actual:
-            diff = DeepDiff(actual[key], desired[key])
-            if not diff:
-                to_add.pop(key)
-                to_delete.pop(key)
+    values_to_add = copy.deepcopy(desired_values)
+    values_to_delete = copy.deepcopy(actual_values)
 
-    return to_add, to_delete
+    for key in list(desired_values.keys()):
+        if key in actual_values and not DeepDiff(actual_values[key], desired_values[key]):
+            values_to_add.pop(key)
+            values_to_delete.pop(key)
+
+    return values_to_add, values_to_delete
 
 
 def main():

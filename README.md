@@ -1,4 +1,4 @@
-# astroctl
+# astro-apply
 
 ## Usage
 This script takes a `config.yaml` file, fetches the Houston GraphQL Schema, parses the `config.yaml` file and attempts to apply the configuration via GraphQL against Houston

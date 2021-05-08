@@ -4,32 +4,27 @@ Run `sh update-schema.sh` to update houston schema
 import yaml
 import os
 import logging
-from typing import Dict, Tuple, Optional
-import copy
 
-from dotenv import dotenv_values
-
-from deepdiff import DeepDiff
-from sgqlc.endpoint.http import HTTPEndpoint
-from sgqlc.operation import Operation
-
-from houston_schema import houston_schema as schema
+import client
+from client import houston_schema as schema, env_vars, CONFIG_FILE
 
 logging.basicConfig(level=logging.INFO)
 
-REQUIRED_VARS = [
-    "BASEURL",  # e.g.  astro.mydomain.com
-    "TOKEN",  # either a service account token or a temporary one obtained from app.BASEURL/token
-]
 
-env = {**dotenv_values(".env"), **os.environ}
-for var in REQUIRED_VARS:
-    if var not in env:
-        raise SystemExit(f"Required env var {var} not found! Exiting!")
+def main():
+    config = load_config()
+    deployments = config["deployments"]
 
-URL = f'https://houston.{env["BASEURL"]}/v1'
-HEADERS = {"Authorization": env["TOKEN"]}
-CONFIG_FILE = env.get("ASTRO_CONFIG", "config.yaml")
+    for d in deployments:
+        deployment = client.run(
+            lambda q: q.deployment(
+                where=schema.DeploymentWhereUniqueInput(
+                    release_name=d["releaseName"]
+                )
+            )
+        ).deployment
+
+        env_vars.apply(deployment)
 
 
 def load_config() -> dict:
@@ -41,103 +36,6 @@ def load_config() -> dict:
         config = yaml.safe_load(f)
 
     return config
-
-
-def run(fn, is_mutation: bool = False, **kwargs):
-    """
-    Run graphql query or mutation against Houston API.
-    Returns response as ORM
-    """
-    endpoint = HTTPEndpoint(URL, HEADERS)
-    query = Operation(schema.Mutation if is_mutation else schema.Query)
-    fn(query, **kwargs)
-    return query + endpoint(query)
-
-
-def compare(
-    actual_values: Optional[Dict[str, dict]], desired_values: Optional[Dict[str, dict]]
-) -> Tuple[dict, dict]:
-    """
-    Compares current values with values from config against current configuration.
-    Returns a dict of items to add, and a dict of items to delete so they can be passed to Houston
-    """
-
-    actual_values = actual_values or {}
-    desired_values = desired_values or {}
-
-    values_to_add = copy.deepcopy(desired_values)
-    values_to_delete = copy.deepcopy(actual_values)
-
-    for key in list(desired_values.keys()):
-        if key in actual_values and not DeepDiff(
-            actual_values[key], desired_values[key]
-        ):
-            values_to_add.pop(key)
-            values_to_delete.pop(key)
-
-    return values_to_add, values_to_delete
-
-
-def update_environment_variables(deployment, environment_variables):
-    deployment_variables = [
-        schema.InputEnvironmentVariable(
-            key=value["key"], value=value["value"], is_secret=value["isSecret"]
-        )
-        for value in environment_variables.values()
-    ]
-    update_deployment_variables_args = {
-        "deployment_uuid": deployment.id,
-        "release_name": deployment.release_name,
-        "environment_variables": deployment_variables,
-    }
-    run(
-        lambda m: m.update_deployment_variables(
-            **update_deployment_variables_args
-        ),
-        is_mutation=True,
-    )
-
-
-def main():
-    config = load_config()
-    deployments = config["deployments"]
-
-    for d in deployments:
-        deployment = run(
-            lambda q: q.deployment(
-                where=schema.DeploymentWhereUniqueInput(
-                    release_name=d["releaseName"]
-                )
-            )
-        ).deployment
-
-        logging.info(
-            f"Applying Deployment Environment Variables for {deployment.release_name}..."
-        )
-
-        environment_variables = {
-            env_var.key: env_var.__json_data__
-            for env_var in deployment.environment_variables
-        }
-        new_environment_variables = {
-            env_var["key"]: env_var
-            for env_var in deployment.get("environmentVariables", [])
-        }
-
-        # env vars are one of the few things that don't have an add or delete function in houston
-        # instead, we will need to pass all values everytime
-        # to avoid unnecessary calls, we check if there are changes
-        vars_to_add, vars_to_delete = compare(environment_variables, new_environment_variables)
-        logging.debug(f"Adding: {vars_to_add}\n Removing: {vars_to_delete} ")
-
-        # if yes, use values directly from config
-        if vars_to_add or vars_to_delete:
-            update_environment_variables(deployment, new_environment_variables)
-
-        else:
-            logging.info(
-                f"No Deployment Environment Variables need to be updated. Skipping..."
-            )
 
 
 # def main():

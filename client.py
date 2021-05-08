@@ -62,8 +62,8 @@ def compare(
     Returns a dict of items to add, and a dict of items to delete so they can be passed to Houston
     """
 
-    desired_values = desired_values or {}
     actual_values = actual_values or {}
+    desired_values = desired_values or {}
 
     values_to_add = copy.deepcopy(desired_values)
     values_to_delete = copy.deepcopy(actual_values)
@@ -78,57 +78,61 @@ def compare(
     return values_to_add, values_to_delete
 
 
+def update_environment_variables(deployment, environment_variables):
+    deployment_variables = [
+        schema.InputEnvironmentVariable(
+            key=value["key"], value=value["value"], is_secret=value["isSecret"]
+        )
+        for value in environment_variables.values()
+    ]
+    update_deployment_variables_args = {
+        "deployment_uuid": deployment.id,
+        "release_name": deployment.release_name,
+        "environment_variables": deployment_variables,
+    }
+    run(
+        lambda m: m.update_deployment_variables(
+            **update_deployment_variables_args
+        ),
+        is_mutation=True,
+    )
+
+
 def main():
     config = load_config()
     deployments = config["deployments"]
 
-    for deployment in deployments:
-        actual_deployment = run(
+    for d in deployments:
+        deployment = run(
             lambda q: q.deployment(
                 where=schema.DeploymentWhereUniqueInput(
-                    release_name=deployment["releaseName"]
+                    release_name=d["releaseName"]
                 )
             )
         ).deployment
 
         logging.info(
-            f"Applying Deployment Environment Variables for {actual_deployment.release_name}..."
+            f"Applying Deployment Environment Variables for {deployment.release_name}..."
         )
 
-        actual_env_vars = {
+        environment_variables = {
             env_var.key: env_var.__json_data__
-            for env_var in actual_deployment.environment_variables
+            for env_var in deployment.environment_variables
         }
-        desired_env_vars = {
+        new_environment_variables = {
             env_var["key"]: env_var
             for env_var in deployment.get("environmentVariables", [])
         }
-        env_vars_to_add, _ = compare(actual_env_vars, desired_env_vars)
-        logging.debug(f"Adding: {env_vars_to_add}\n Removing: {_} ")
 
         # env vars are one of the few things that don't have an add or delete function in houston
-        # updateEnvVars appears to be declarative-ish
-        # we check if _ has elements for case where all env_vars are being removed
-        if env_vars_to_add or _:
-            env_vars_to_add = [
-                schema.InputEnvironmentVariable(
-                    key=value["key"], value=value["value"], is_secret=value["isSecret"]
-                )
-                for value in env_vars_to_add.values()
-            ]
+        # instead, we will need to pass all values everytime
+        # to avoid unnecessary calls, we check if there are changes
+        vars_to_add, vars_to_delete = compare(environment_variables, new_environment_variables)
+        logging.debug(f"Adding: {vars_to_add}\n Removing: {vars_to_delete} ")
 
-            update_deployment_variables_args = {
-                "deployment_uuid": actual_deployment.id,
-                "release_name": actual_deployment.release_name,
-                "environment_variables": env_vars_to_add,
-            }
-
-            run(
-                lambda m: m.update_deployment_variables(
-                    **update_deployment_variables_args
-                ),
-                is_mutation=True,
-            )
+        # if yes, use values directly from config
+        if vars_to_add or vars_to_delete:
+            update_environment_variables(deployment, new_environment_variables)
 
         else:
             logging.info(

@@ -1,7 +1,9 @@
 import copy
+import logging
 import os
 from typing import Optional, Dict, Tuple
 
+import yaml
 from deepdiff import DeepDiff
 from dotenv import dotenv_values
 from sgqlc.endpoint.http import HTTPEndpoint
@@ -58,3 +60,14 @@ def compare(
             remove.pop(key)
 
     return add, remove
+
+
+def load_config() -> dict:
+    if os.path.exists(CONFIG_FILE) is False:
+        raise SystemExit("Config File not found! Exiting!")
+
+    logging.info("Parsing config.yaml...")
+    with open(CONFIG_FILE, "r") as f:
+        config = yaml.safe_load(f)
+
+    return config

@@ -1,41 +1,28 @@
 """
 Run `sh update-schema.sh` to update houston schema
 """
-import yaml
-import os
 import logging
 
 import client
-from client import houston_schema as schema, env_vars, CONFIG_FILE
+from client import houston_schema as schema, env_vars
 
 logging.basicConfig(level=logging.INFO)
 
 
 def main():
-    config = load_config()
+    config = client.load_config()
     deployments = config["deployments"]
 
-    for d in deployments:
+    for deployment_cfg in deployments:
         deployment = client.run(
             lambda q: q.deployment(
                 where=schema.DeploymentWhereUniqueInput(
-                    release_name=d["releaseName"]
+                    release_name=deployment_cfg["releaseName"]
                 )
             )
         ).deployment
 
-        env_vars.apply(deployment)
-
-
-def load_config() -> dict:
-    if os.path.exists(CONFIG_FILE) is False:
-        raise SystemExit("Config File not found! Exiting!")
-
-    logging.info("Parsing config.yaml...")
-    with open(CONFIG_FILE, "r") as f:
-        config = yaml.safe_load(f)
-
-    return config
+        env_vars.apply(deployment, deployment_cfg)
 
 
 # def main():

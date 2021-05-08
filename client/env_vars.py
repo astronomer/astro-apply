@@ -3,7 +3,7 @@ import logging
 from client import houston_schema as schema, run, compare
 
 
-def apply(deployment):
+def apply(deployment, deployment_cfg):
     logging.info(
         f"Applying Deployment Environment Variables for {deployment.release_name}..."
     )
@@ -13,7 +13,7 @@ def apply(deployment):
     }
     new_env_vars = {
         env_var["key"]: env_var
-        for env_var in deployment.get("environmentVariables", [])
+        for env_var in deployment_cfg.get("environmentVariables", [])
     }
     # env vars don't have an add or delete function in houston
     # instead, we will need to pass all values if changes are needed
@@ -21,7 +21,7 @@ def apply(deployment):
     logging.debug(f"Adding: {env_vars_to_add}\n Removing: {env_vars_to_delete} ")
     # if yes, use values directly from config
     if env_vars_to_add or env_vars_to_delete:
-        update(deployment, new_env_vars)
+        _update(deployment, new_env_vars)
 
     else:
         logging.info(
@@ -29,7 +29,7 @@ def apply(deployment):
         )
 
 
-def update(deployment, environment_variables):
+def _update(deployment, environment_variables):
     deployment_variables = [
         schema.InputEnvironmentVariable(
             key=value["key"], value=value["value"], is_secret=value["isSecret"]

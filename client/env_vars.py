@@ -15,13 +15,16 @@ def apply(deployment, deployment_cfg):
         env_var["key"]: env_var
         for env_var in deployment_cfg.get("environmentVariables", [])
     }
+
+    env_vars_to_add, env_vars_to_update, env_vars_to_delete = compare(current_env_vars, new_env_vars)
+    
     # env vars don't have an add or delete function in houston
     # instead, we will need to pass all values if changes are needed
-    env_vars_to_add, env_vars_to_delete = compare(current_env_vars, new_env_vars)
+    env_vars_to_add.update(env_vars_to_update)
     logging.debug(f"Adding: {env_vars_to_add}\n Removing: {env_vars_to_delete} ")
     # if yes, use values directly from config
     if env_vars_to_add or env_vars_to_delete:
-        _update(deployment, new_env_vars)
+        update(deployment, new_env_vars)
 
     else:
         logging.info(
@@ -29,7 +32,7 @@ def apply(deployment, deployment_cfg):
         )
 
 
-def _update(deployment, environment_variables):
+def update(deployment, environment_variables):
     deployment_variables = [
         schema.InputEnvironmentVariable(
             key=value["key"], value=value["value"], is_secret=value["isSecret"]

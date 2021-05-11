@@ -9,7 +9,7 @@ from dotenv import dotenv_values
 from sgqlc.endpoint.http import HTTPEndpoint
 from sgqlc.operation import Operation
 
-from client import houston_schema as schema
+from client import houston_schema
 
 
 REQUIRED_VARS = [
@@ -33,17 +33,18 @@ def run(fn, is_mutation: bool = False, **kwargs):
     Returns response as ORM
     """
     endpoint = HTTPEndpoint(URL, HEADERS)
-    query = Operation(schema.Mutation if is_mutation else schema.Query)
+    query = Operation(houston_schema.Mutation if is_mutation else houston_schema.Query)
     fn(query, **kwargs)
     return query + endpoint(query)
 
 
 def compare(
     current: Optional[Dict[str, dict]], new: Optional[Dict[str, dict]]
-) -> Tuple[dict, dict]:
+) -> Tuple[dict, dict, dict]:
     """
     Compares current values with values from config against current configuration.
-    Returns a dict of items to add, and a dict of items to delete so they can be passed to Houston
+    Returns a dict of items to add, a dict of items to update, and a dict of items to delete so
+    they can be passed to Houston
     """
 
     current = current or {}
@@ -51,15 +52,18 @@ def compare(
 
     add = copy.deepcopy(new)
     remove = copy.deepcopy(current)
+    update = {}
 
     for key in list(new.keys()):
-        if key in current and not DeepDiff(
-            current[key], new[key]
-        ):
+        if key in current:
+            diff = DeepDiff(current[key], new[key])
+            if diff:
+                logging.debug(f"{new[key]}: {diff}")
+                update[key] = new[key]
             add.pop(key)
             remove.pop(key)
 
-    return add, remove
+    return add, update, remove
 
 
 def load_config() -> dict:

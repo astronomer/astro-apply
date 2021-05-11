@@ -4,7 +4,9 @@ Run `sh update-schema.sh` to update houston schema
 import logging
 
 import client
-from client import houston_schema as schema, env_vars, users
+from client import env_vars
+from client import houston_schema as schema
+from client import users
 
 logging.basicConfig(level=logging.DEBUG)
 

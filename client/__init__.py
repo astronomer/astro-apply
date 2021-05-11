@@ -1,7 +1,7 @@
 import copy
 import logging
 import os
-from typing import Optional, Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import yaml
 from deepdiff import DeepDiff
@@ -10,7 +10,6 @@ from sgqlc.endpoint.http import HTTPEndpoint
 from sgqlc.operation import Operation
 
 from client import houston_schema
-
 
 REQUIRED_VARS = [
     "BASEURL",  # e.g.  astro.mydomain.com

@@ -34,7 +34,8 @@ def run(fn, is_mutation: bool = False, **kwargs):
     endpoint = HTTPEndpoint(URL, HEADERS)
     query = Operation(houston_schema.Mutation if is_mutation else houston_schema.Query)
     fn(query, **kwargs)
-    return query + endpoint(query)
+    data = endpoint(query)
+    return query + data
 
 
 def compare(

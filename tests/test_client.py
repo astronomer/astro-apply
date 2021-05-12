@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import pytest
 
 import client
@@ -50,3 +52,25 @@ def test_compare(
     assert to_add == expected_to_add
     assert to_delete == expected_to_delete
     assert to_update == expected_to_update
+
+
+def test_run_query():
+    query = client.run(lambda q: q.workspace_users(workspace_uuid="test_id"))
+    assert type(query) == client.houston_schema.Query
+
+
+def test_run_mutation():
+
+    kwargs = {
+        "email": "some_email",
+        "workspace_uuid": "some_workspace_id",
+        "deployment_roles": [
+            client.houston_schema.DeploymentRoles(
+                deployment_id="some_deployment_id", role="DEPLOYMENT_ADMIN"
+            )
+        ],
+    }
+
+    mutation = client.run(lambda m: m.workspace_add_user(**kwargs), is_mutation=True,)
+    assert type(mutation) == client.houston_schema.Mutation
+

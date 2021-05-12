@@ -11,7 +11,7 @@ def apply(deployment, deployment_cfg):
     )
 
     def ws_users(q):
-        q.workspace_users(workspace_uuid=deployment.workspace.id).username()
+        q.workspace_users(workspace_uuid=deployment.workspace.id).__fields__("id", "username")
         q.workspace_users.role_bindings()
         q.workspace_users.role_bindings.role()
         q.workspace_users.role_bindings.workspace.__fields__("id", "label")
@@ -33,7 +33,7 @@ def apply(deployment, deployment_cfg):
     if users_to_add:
         for user in users_to_add.values():
 
-            workspace_add_user_args = {
+            kwargs = {
                 "email": user["username"],
                 "workspace_uuid": deployment.workspace.id,
                 "deployment_roles": [
@@ -44,13 +44,38 @@ def apply(deployment, deployment_cfg):
             }
 
             run(
-                lambda m: m.workspace_add_user(**workspace_add_user_args),
+                lambda m: m.workspace_add_user(**kwargs),
                 is_mutation=True,
             )
 
-    # TODO:
-    #  1. If users_to_update --> update user role
-    #  2. If users_to_delete --> remove user from deployment, leave in workspace in case they are part of a different deployment
+    if users_to_update:
+        for user in users_to_update.values():
+
+            kwargs = {
+                "user_id": next(filter(lambda x: x["username"] == user["username"], ws_users)).id,
+                "deployment_id": deployment.id,
+                "email": user["username"],
+                "role": user["role"]
+            }
+
+            run(
+                lambda m: m.deployment_update_user_role(**kwargs),
+                is_mutation=True
+            )
+
+    if users_to_delete:
+        for user in users_to_delete.values():
+
+            kwargs = {
+                "user_id": next(filter(lambda x: x["username"] == user["username"], ws_users)).id,
+                "deployment_id": deployment.id,
+                "email": user["username"]
+            }
+
+            run(
+                lambda m: m.deployment_remove_user_role(**kwargs),
+                is_mutation=True
+            )
 
 
 def filter_roles(ws_users, deployment):
@@ -66,3 +91,4 @@ def filter_roles(ws_users, deployment):
         }
 
     return roles
+

@@ -1,6 +1,8 @@
 import logging
 
-from client import compare, run
+from client import compare
+from client import houston_schema as schema
+from client import run
 
 
 def apply(deployment, deployment_cfg):
@@ -28,18 +30,35 @@ def apply(deployment, deployment_cfg):
         current_user_roles, new_user_roles
     )
 
+    if users_to_add:
+        for user in users_to_add.values():
+
+            workspace_add_user_args = {
+                "email": user["username"],
+                "workspace_uuid": deployment.workspace.id,
+                "deployment_roles": [
+                    schema.DeploymentRoles(
+                        deployment_id=deployment.id, role=user["role"]
+                    )
+                ],
+            }
+
+            run(
+                lambda m: m.workspace_add_user(**workspace_add_user_args),
+                is_mutation=True,
+            )
+
     # TODO:
-    #  1. If users_to_add --> invite user to workspace, add user to deployment
-    #  2. If users_to_update --> update user role
-    #  3. If users_to_delete --> remove user from deployment, leave in workspace in case they are part of a different deployment
+    #  1. If users_to_update --> update user role
+    #  2. If users_to_delete --> remove user from deployment, leave in workspace in case they are part of a different deployment
 
 
 def filter_roles(ws_users, deployment):
     roles = {}
     for user in ws_users:
 
-        def deploy_id(r, deployment=deployment):
-            return r.role.startswith("DEPLOYMENT") and r.deployment.id == deployment.id
+        def deploy_id(r, id_=deployment.id):
+            return r.role.startswith("DEPLOYMENT") and r.deployment.id == id_
 
         roles[user.username] = {
             "username": user.username,

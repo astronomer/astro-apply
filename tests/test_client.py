@@ -1,5 +1,3 @@
-from unittest.mock import Mock
-
 import pytest
 
 import client
@@ -54,12 +52,21 @@ def test_compare(
     assert to_update == expected_to_update
 
 
-def test_run_query():
+def test_run_query(monkeypatch):
+    def mock_call(*args):
+        return {'data': {'workspaceUsers': []}}
+    from sgqlc.endpoint.http import HTTPEndpoint
+    monkeypatch.setattr(HTTPEndpoint, '__call__', mock_call)
     query = client.run(lambda q: q.workspace_users(workspace_uuid="test_id"))
     assert type(query) == client.houston_schema.Query
 
 
-def test_run_mutation():
+def test_run_mutation(monkeypatch):
+
+    def mock_call(*args):
+        return {'data': {'workspaceAddUser':None}}
+    from sgqlc.endpoint.http import HTTPEndpoint
+    monkeypatch.setattr(HTTPEndpoint, '__call__', mock_call)
 
     kwargs = {
         "email": "some_email",

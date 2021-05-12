@@ -19,7 +19,7 @@ def apply(deployment, deployment_cfg):
 
     ws_users = run(ws_users).workspace_users
 
-    current_user_roles = user_roles(ws_users, deployment)
+    current_user_roles = filter_roles(ws_users, deployment)
     new_user_roles = {
         cfg_user["username"]: cfg_user for cfg_user in deployment_cfg["users"]
     }
@@ -34,25 +34,16 @@ def apply(deployment, deployment_cfg):
     #  3. If users_to_delete --> remove user from deployment, leave in workspace in case they are part of a different deployment
 
 
-def user_roles(ws_users, deployment):
+def filter_roles(ws_users, deployment):
     roles = {}
     for user in ws_users:
-        workspace_roles = [
-            rb.role
-            for rb in user.role_bindings
-            if rb.role.startswith("WORKSPACE")
-            and rb.workspace.id == deployment.workspace.id
-        ]
-        deployment_roles = [
-            rb.role
-            for rb in user.role_bindings
-            if rb.role.startswith("DEPLOYMENT") and rb.deployment.id == deployment.id
-        ]
+
+        def deploy_id(r, deployment=deployment):
+            return r.role.startswith("DEPLOYMENT") and r.deployment.id == deployment.id
+
         roles[user.username] = {
             "username": user.username,
-            "roles": {
-                "workspace": workspace_roles[0],
-                "deployment": deployment_roles[0],
-            },
+            "role": next(filter(deploy_id, user.role_bindings)).role,
         }
+
     return roles

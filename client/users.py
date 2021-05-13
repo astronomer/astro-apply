@@ -11,7 +11,9 @@ def apply(deployment, deployment_cfg):
     )
 
     def ws_users(q):
-        q.workspace_users(workspace_uuid=deployment.workspace.id).__fields__("id", "username")
+        q.workspace_users(workspace_uuid=deployment.workspace.id).__fields__(
+            "id", "username"
+        )
         q.workspace_users.role_bindings()
         q.workspace_users.role_bindings.role()
         q.workspace_users.role_bindings.workspace.__fields__("id", "label")
@@ -30,55 +32,28 @@ def apply(deployment, deployment_cfg):
         current_user_roles, new_user_roles
     )
 
-    if not users_to_add or not users_to_update or not users_to_delete:
+    if not users_to_add and not users_to_update and not users_to_delete:
         logging.info("No Users need to be updated. Skipping... ")
+
     else:
+
         if users_to_add:
-            for u in users_to_add.values():
-
-                user = {
-                    "email": u["username"],
-                    "workspace_uuid": deployment.workspace.id,
-                    "deployment_roles": [
-                        schema.DeploymentRoles(
-                            deployment_id=deployment.id, role=u["role"]
-                        )
-                    ],
-                }
-
-                run(
-                    lambda m: m.workspace_add_user(**user),
-                    is_mutation=True,
-                )
+            for user in users_to_add.values():
+                add_(deployment, user)
 
         if users_to_update:
-            for u in users_to_update.values():
-
-                user = {
-                    "user_id": next(filter(lambda x: x["username"] == u["username"], ws_users)).id,
-                    "deployment_id": deployment.id,
-                    "email": u["username"],
-                    "role": u["role"]
-                }
-
-                run(
-                    lambda m: m.deployment_update_user_role(**user),
-                    is_mutation=True
-                )
+            for user in users_to_update.values():
+                user["user_id"] = next(
+                    filter(lambda x: x["username"] == user["username"], ws_users)
+                ).id
+                update(deployment, user)
 
         if users_to_delete:
-            for u in users_to_delete.values():
-
-                user = {
-                    "user_id": next(filter(lambda x: x["username"] == u["username"], ws_users)).id,
-                    "deployment_id": deployment.id,
-                    "email": u["username"]
-                }
-
-                run(
-                    lambda m: m.deployment_remove_user_role(**user),
-                    is_mutation=True
-                )
+            for user in users_to_delete.values():
+                user["user_id"] = next(
+                    filter(lambda x: x["username"] == user["username"], ws_users)
+                ).id
+                delete(deployment, user)
 
 
 def filter_roles(ws_users, deployment):
@@ -95,3 +70,38 @@ def filter_roles(ws_users, deployment):
 
     return roles
 
+
+def add_(deployment, user: dict):
+    user = {
+        "email": user["username"],
+        "workspace_uuid": deployment.workspace.id,
+        "deployment_roles": [
+            schema.DeploymentRoles(deployment_id=deployment.id, role=user["role"])
+        ],
+    }
+    logging.debug(f"Adding {user}")
+    run(
+        lambda m: m.workspace_add_user(**user),
+        is_mutation=True,
+    )
+
+
+def update(deployment, user: dict):
+    user = {
+        "user_id": user["user_id"],
+        "deployment_id": deployment.id,
+        "email": user["username"],
+        "role": user["role"],
+    }
+    logging.debug(f"Updating {user}")
+    run(lambda m: m.deployment_update_user_role(**user), is_mutation=True)
+
+
+def delete(deployment, user: dict):
+    user = {
+        "user_id": user["user_id"],
+        "deployment_id": deployment.id,
+        "email": user["username"],
+    }
+    logging.debug(f"Deleting {user}")
+    run(lambda m: m.deployment_remove_user_role(**user), is_mutation=True)

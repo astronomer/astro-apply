@@ -30,52 +30,55 @@ def apply(deployment, deployment_cfg):
         current_user_roles, new_user_roles
     )
 
-    if users_to_add:
-        for user in users_to_add.values():
+    if not users_to_add or not users_to_update or not users_to_delete:
+        logging.info("No Users need to be updated. Skipping... ")
+    else:
+        if users_to_add:
+            for u in users_to_add.values():
 
-            kwargs = {
-                "email": user["username"],
-                "workspace_uuid": deployment.workspace.id,
-                "deployment_roles": [
-                    schema.DeploymentRoles(
-                        deployment_id=deployment.id, role=user["role"]
-                    )
-                ],
-            }
+                user = {
+                    "email": u["username"],
+                    "workspace_uuid": deployment.workspace.id,
+                    "deployment_roles": [
+                        schema.DeploymentRoles(
+                            deployment_id=deployment.id, role=u["role"]
+                        )
+                    ],
+                }
 
-            run(
-                lambda m: m.workspace_add_user(**kwargs),
-                is_mutation=True,
-            )
+                run(
+                    lambda m: m.workspace_add_user(**user),
+                    is_mutation=True,
+                )
 
-    if users_to_update:
-        for user in users_to_update.values():
+        if users_to_update:
+            for u in users_to_update.values():
 
-            kwargs = {
-                "user_id": next(filter(lambda x: x["username"] == user["username"], ws_users)).id,
-                "deployment_id": deployment.id,
-                "email": user["username"],
-                "role": user["role"]
-            }
+                user = {
+                    "user_id": next(filter(lambda x: x["username"] == u["username"], ws_users)).id,
+                    "deployment_id": deployment.id,
+                    "email": u["username"],
+                    "role": u["role"]
+                }
 
-            run(
-                lambda m: m.deployment_update_user_role(**kwargs),
-                is_mutation=True
-            )
+                run(
+                    lambda m: m.deployment_update_user_role(**user),
+                    is_mutation=True
+                )
 
-    if users_to_delete:
-        for user in users_to_delete.values():
+        if users_to_delete:
+            for u in users_to_delete.values():
 
-            kwargs = {
-                "user_id": next(filter(lambda x: x["username"] == user["username"], ws_users)).id,
-                "deployment_id": deployment.id,
-                "email": user["username"]
-            }
+                user = {
+                    "user_id": next(filter(lambda x: x["username"] == u["username"], ws_users)).id,
+                    "deployment_id": deployment.id,
+                    "email": u["username"]
+                }
 
-            run(
-                lambda m: m.deployment_remove_user_role(**kwargs),
-                is_mutation=True
-            )
+                run(
+                    lambda m: m.deployment_remove_user_role(**user),
+                    is_mutation=True
+                )
 
 
 def filter_roles(ws_users, deployment):

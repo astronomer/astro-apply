@@ -54,19 +54,22 @@ def test_compare(
 
 def test_run_query(monkeypatch):
     def mock_call(*args):
-        return {'data': {'workspaceUsers': []}}
+        return {"data": {"workspaceUsers": []}}
+
     from sgqlc.endpoint.http import HTTPEndpoint
-    monkeypatch.setattr(HTTPEndpoint, '__call__', mock_call)
+
+    monkeypatch.setattr(HTTPEndpoint, "__call__", mock_call)
     query = client.run(lambda q: q.workspace_users(workspace_uuid="test_id"))
     assert type(query) == client.houston_schema.Query
 
 
 def test_run_mutation(monkeypatch):
-
     def mock_call(*args):
-        return {'data': {'workspaceAddUser':None}}
+        return {"data": {"workspaceAddUser": None}}
+
     from sgqlc.endpoint.http import HTTPEndpoint
-    monkeypatch.setattr(HTTPEndpoint, '__call__', mock_call)
+
+    monkeypatch.setattr(HTTPEndpoint, "__call__", mock_call)
 
     kwargs = {
         "email": "some_email",
@@ -78,6 +81,8 @@ def test_run_mutation(monkeypatch):
         ],
     }
 
-    mutation = client.run(lambda m: m.workspace_add_user(**kwargs), is_mutation=True,)
+    mutation = client.run(
+        lambda m: m.workspace_add_user(**kwargs),
+        is_mutation=True,
+    )
     assert type(mutation) == client.houston_schema.Mutation
-

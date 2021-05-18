@@ -11,9 +11,9 @@ def apply(deployment, deployment_cfg):
         f"Applying Deployment Environment Variables for {deployment.release_name}..."
     )
 
-    current, new = parse_env_vars(deployment, deployment_cfg)
+    current_vars, new_vars = parse(deployment, deployment_cfg)
 
-    vars_to_add, vars_to_update, vars_to_delete = compare(current, new)
+    vars_to_add, vars_to_update, vars_to_delete = compare(current_vars, new_vars)
 
     # env vars don't have an add or delete function in houston
     # instead, we will need to pass all values if changes are needed
@@ -29,7 +29,7 @@ def apply(deployment, deployment_cfg):
         )
 
 
-def parse_env_vars(deployment, deployment_cfg):
+def parse(deployment, deployment_cfg):
     current = {
         env_var.key: env_var.__json_data__
         for env_var in deployment.environment_variables

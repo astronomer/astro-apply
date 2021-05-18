@@ -43,16 +43,12 @@ def apply(deployment, deployment_cfg):
 
         if users_to_update:
             for user in users_to_update.values():
-                user["user_id"] = next(
-                    filter(lambda x: x["username"] == user["username"], ws_users)
-                ).id
+                user["user_id"] = filter_user_id(user, ws_users)
                 update(deployment, user)
 
         if users_to_delete:
             for user in users_to_delete.values():
-                user["user_id"] = next(
-                    filter(lambda x: x["username"] == user["username"], ws_users)
-                ).id
+                user["user_id"] = filter_user_id(user, ws_users)
                 delete(deployment, user)
 
 
@@ -69,6 +65,10 @@ def filter_roles(ws_users, deployment):
         }
 
     return roles
+
+
+def filter_user_id(user, ws_users):
+    return next(filter(lambda x: x["username"] == user["username"], ws_users)).id
 
 
 def add_(deployment, user: dict):

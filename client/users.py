@@ -23,10 +23,8 @@ def apply(deployment, deployment_cfg):
 
     ws_users = run(ws_users).workspace_users
 
-    current_user_roles = filter_roles(ws_users, deployment)
-    new_user_roles = {
-        cfg_user["username"]: cfg_user for cfg_user in deployment_cfg["users"]
-    }
+    current_user_roles = parse_current(ws_users, deployment)
+    new_user_roles = parse_new(deployment_cfg)
 
     users_to_add, users_to_update, users_to_delete = compare(
         current_user_roles, new_user_roles
@@ -52,19 +50,28 @@ def apply(deployment, deployment_cfg):
                 delete(deployment, user)
 
 
-def filter_roles(ws_users, deployment):
+def parse_current(ws_users, deployment):
     roles = {}
     for user in ws_users:
 
-        def deploy_id(r, id_=deployment.id):
-            return r.role.startswith("DEPLOYMENT") and r.deployment.id == id_
-
         roles[user.username] = {
             "username": user.username,
-            "role": next(filter(deploy_id, user.role_bindings)).role,
+            "role": next(
+                filter(
+                    lambda r: r.role.startswith("DEPLOYMENT")
+                    and r.deployment.id == deployment.id,
+                    user.role_bindings,
+                )
+            ).role,
         }
 
     return roles
+
+
+def parse_new(deployment_cfg):
+    return {
+        cfg_user["username"]: cfg_user for cfg_user in deployment_cfg.get("users", [])
+    }
 
 
 def filter_user_id(user, ws_users):

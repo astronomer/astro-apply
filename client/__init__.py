@@ -1,9 +1,10 @@
 import copy
+import itertools
 import logging
 import os
+from copy import deepcopy
 from typing import Dict, Optional, Tuple
 
-import yaml
 from deepdiff import DeepDiff
 from dotenv import dotenv_values
 from sgqlc.endpoint.http import HTTPEndpoint
@@ -23,7 +24,6 @@ for var in REQUIRED_VARS:
 
 URL = f'https://houston.{env["BASEURL"]}/v1'
 HEADERS = {"Authorization": env["TOKEN"]}
-CONFIG_FILE = env.get("ASTRO_CONFIG", "config.yaml")
 
 
 def run(fn, is_mutation: bool = False, **kwargs):
@@ -66,12 +66,15 @@ def compare(
     return add, update, remove
 
 
-def load_config() -> dict:
-    if os.path.exists(CONFIG_FILE) is False:
-        raise SystemExit("Config File not found! Exiting!")
+def apply_defaults(config):
+    defaults = deepcopy(config)
+    defaults.pop("deployments")
 
-    logging.info("Parsing config.yaml...")
-    with open(CONFIG_FILE, "r") as f:
-        config = yaml.safe_load(f)
+    for deployment, key in itertools.product(config["deployments"], defaults):
+        for item in defaults[key]:
+            if key not in deployment:
+                deployment[key] = []
+            if item not in deployment[key]:
+                deployment[key].append(item)
 
     return config

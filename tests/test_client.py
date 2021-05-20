@@ -12,30 +12,30 @@ FOO_BAZ = {"FOO": foo, "BAZ": baz}
 
 # (actual, desired, expected_to_add, expected_to_delete, expected_to_udate)
 compare_test_data = [
-    (FOO, FOO, {}, {}, {}),  # nothing changes, add:0 del:0
-    (FOO, BAR, {}, {}, BAR),  # env var value changes, add:1 del:1
+    (FOO, FOO, {}, {}, {}),  # nothing changes, add:0 del:0 update:0
+    (FOO, BAR, {}, {}, BAR),  # env var value changes, add:0 del:0 update:1
     (
         FOO_BAZ,
         FOO,
         {},
         BAZ,
         {},
-    ),  # two env vars, remove 1 env var from config - add:0 - del:1
+    ),  # two env vars, remove 1 env var from config - add:0 del:1 update: 0
     (
         FOO,
         FOO_BAZ,
         BAZ,
         {},
         {},
-    ),  # one env var exists, one to be added from config - add:1 del:0
+    ),  # one env var exists, one to be added from config - add:1 del:0 update:0
     (
         None,
         FOO,
         FOO,
         {},
         {},
-    ),  # no env vars exist, one to be added from config add:1 del:0
-    (FOO, None, {}, FOO, {}),  # one env var exists, none listed in config
+    ),  # no env vars exist, one to be added from config add:1 del:0 update:0
+    (FOO, None, {}, FOO, {}),  # one env var exists, none listed in config add:0 del: 1 update:0
 ]
 
 
@@ -86,3 +86,86 @@ def test_run_mutation(monkeypatch):
         is_mutation=True,
     )
     assert type(mutation) == client.houston_schema.Mutation
+
+
+# test user objects
+some_user = {"username": "some_user@example.com", "role": "DEPLOYMENT_ADMIN"}
+some_other_user = {"username": "some_other_user", "role": "DEPLOYMENT_VIEWER"}
+
+# test environment variables
+cluster_name = {"key": "CLUSTER_NAME", "value": "SOME_CLUSTER_NAME", "isSecret": False}
+environment_name = {"key": "ENVIRONMENT", "value": "TEST", "isSecret": False}
+
+# test deployments
+some_deployment = {
+    "releaseName": "some-release-name-5555",
+    "workspace": "some-workspace",
+}
+
+# mock config
+test_config_1 = {
+    "users": [some_user],
+    "environmentVariables": [cluster_name],
+    "deployments": [
+        {
+            "releaseName": some_deployment["releaseName"],
+            "workspace": some_deployment["workspace"],
+            "users": [some_other_user],
+            "environmentVariables": [environment_name]
+         }
+    ]
+}
+
+expected_config_1 = {
+    "users": [some_user],
+    "environmentVariables": [cluster_name],
+    "deployments": [
+        {
+            "releaseName": some_deployment["releaseName"],
+            "workspace": some_deployment["workspace"],
+            "users": [some_other_user, some_user],
+            "environmentVariables": [environment_name, cluster_name]
+        }
+    ]
+}
+
+# mock config
+test_config_2 = {
+    "users": [some_user],
+    "environmentVariables": [cluster_name],
+    "deployments": [
+        {
+            "releaseName": some_deployment["releaseName"],
+            "workspace": some_deployment["workspace"],
+         }
+    ]
+}
+
+expected_config_2 = {
+    "users": [some_user],
+    "environmentVariables": [cluster_name],
+    "deployments": [
+        {
+            "releaseName": some_deployment["releaseName"],
+            "workspace": some_deployment["workspace"],
+            "users": [some_user],
+            "environmentVariables": [cluster_name]
+        }
+    ]
+}
+
+apply_test_data = [
+    (test_config_1, expected_config_1),
+    (test_config_2, expected_config_2)
+]
+
+
+@pytest.mark.parametrize(
+    "test_config,expected_config",
+    apply_test_data,
+)
+def test_apply_defaults(test_config, expected_config):
+    modified_config = client.apply_defaults(test_config)
+    from deepdiff import DeepDiff
+    diff = DeepDiff(modified_config, expected_config)
+    assert not diff

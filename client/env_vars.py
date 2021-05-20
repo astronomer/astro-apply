@@ -11,7 +11,8 @@ def apply(deployment, deployment_cfg):
         f"Applying Deployment Environment Variables for {deployment.release_name}..."
     )
 
-    current_vars, new_vars = parse(deployment, deployment_cfg)
+    current_vars = parse_current(deployment)
+    new_vars = parse_new(deployment_cfg)
 
     vars_to_add, vars_to_update, vars_to_delete = compare(current_vars, new_vars)
 
@@ -21,7 +22,7 @@ def apply(deployment, deployment_cfg):
     logging.debug(f"Adding: {vars_to_add}\n Removing: {vars_to_delete} ")
 
     if vars_to_add or vars_to_delete:
-        update_(deployment, vars_to_add)
+        update(deployment, vars_to_add)
 
     else:
         logging.info(
@@ -29,30 +30,33 @@ def apply(deployment, deployment_cfg):
         )
 
 
-def parse(deployment, deployment_cfg):
-    current = {
+def parse_current(deployment):
+    return {
         env_var.key: env_var.__json_data__
         for env_var in deployment.environment_variables
     }
-    new = {
+
+
+def parse_new(deployment_cfg):
+    return {
         env_var["key"]: env_var
         for env_var in deployment_cfg.get("environmentVariables", [])
     }
-    return current, new
 
 
-def update_(deployment, environment_variables):
-    environment_variables = [
-        schema.InputEnvironmentVariable(
-            key=value["key"], value=value["value"], is_secret=value["isSecret"]
-        )
-        for value in environment_variables.values()
-    ]
+def update(deployment, environment_variables):
+
     deployment_variables = {
         "deployment_uuid": deployment.id,
         "release_name": deployment.release_name,
-        "environment_variables": environment_variables,
+        "environment_variables": [
+            schema.InputEnvironmentVariable(
+                key=value["key"], value=value["value"], is_secret=value["isSecret"]
+            )
+            for value in environment_variables.values()
+        ],
     }
+
     run(
         lambda m: m.update_deployment_variables(**deployment_variables),
         is_mutation=True,

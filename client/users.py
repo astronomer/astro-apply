@@ -3,6 +3,7 @@ import logging
 from client import compare
 from client import houston_schema as schema
 from client import run
+from client import parse_from_config
 
 
 def apply(deployment, deployment_cfg):
@@ -23,12 +24,10 @@ def apply(deployment, deployment_cfg):
 
     ws_users = run(ws_users).workspace_users
 
-    current_user_roles = parse_current(ws_users, deployment)
-    new_user_roles = parse_new(deployment_cfg)
+    current_users = parse_user_attrs(ws_users, deployment.id)
+    new_users = parse_from_config(key="username", section=deployment_cfg.get("users", []))
 
-    users_to_add, users_to_update, users_to_delete = compare(
-        current_user_roles, new_user_roles
-    )
+    users_to_add, users_to_update, users_to_delete = compare(current_users, new_users)
 
     if not users_to_add and not users_to_update and not users_to_delete:
         logging.info("No Users need to be updated. Skipping... ")
@@ -50,32 +49,30 @@ def apply(deployment, deployment_cfg):
                 delete(deployment, user)
 
 
-def parse_current(ws_users, deployment):
-    roles = {}
+def parse_user_attrs(ws_users, deployment_id):
+    users = {}
     for user in ws_users:
 
-        roles[user.username] = {
+        users[user.username] = {
             "username": user.username,
-            "role": next(
-                filter(
-                    lambda r: r.role.startswith("DEPLOYMENT")
-                    and r.deployment.id == deployment.id,
-                    user.role_bindings,
-                )
-            ).role,
+            "role": filter_user_role(deployment_id, user.role_bindings),
         }
 
-    return roles
-
-
-def parse_new(deployment_cfg):
-    return {
-        cfg_user["username"]: cfg_user for cfg_user in deployment_cfg.get("users", [])
-    }
+    return users
 
 
 def filter_user_id(user, ws_users):
     return next(filter(lambda x: x["username"] == user["username"], ws_users)).id
+
+
+def filter_user_role(deployment_id, user_role_bindings):
+    return next(
+        filter(
+            lambda r: r.role.startswith("DEPLOYMENT")
+            and r.deployment.id == deployment_id,
+            user_role_bindings,
+        )
+    ).role
 
 
 def add_(deployment, user: dict):

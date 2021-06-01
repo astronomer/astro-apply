@@ -10,12 +10,13 @@ import client
 from client import env_vars
 from client import houston_schema as schema
 from client import users
+from settings import CONFIG_PATH
 
 logging.basicConfig(level=logging.DEBUG)
 
 
 def main():
-    config = load_config(os.environ.get("ASTRO_CONFIG", "config.yaml"))
+    config = load_config(CONFIG_PATH)
     config = client.apply_defaults(config)
 
     deployments = config["deployments"]
@@ -47,6 +48,3 @@ def load_config(config_file) -> dict:
 
 if __name__ == "__main__":
     main()
-
-
-

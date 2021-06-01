@@ -169,3 +169,35 @@ def test_apply_defaults(test_config, expected_config):
     from deepdiff import DeepDiff
     diff = DeepDiff(modified_config, expected_config)
     assert not diff
+
+
+empty_section = {}
+user_section = {
+    "users": [
+        {
+            "username": "constance@astronomer.io",
+            "role": "DEPLOYMENT_ADMIN"
+        }
+    ]
+}
+parse_from_config_data = [
+    (
+        "username",
+        empty_section.get("users", []),
+        {}
+    ),
+    (
+        "username",
+        user_section["users"],
+        {"constance@astronomer.io": {"username": "constance@astronomer.io", "role": "DEPLOYMENT_ADMIN"}}
+    )
+]
+
+
+@pytest.mark.parametrize(
+    "key,config_section,expected_results",
+    parse_from_config_data,
+)
+def test_parse_from_config(key, config_section, expected_results):
+    results = client.parse_from_config(key=key, section=config_section)
+    assert results == expected_results

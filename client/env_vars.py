@@ -3,6 +3,7 @@ import logging
 from client import compare
 from client import houston_schema as schema
 from client import run
+from client import parse_from_config
 
 
 def apply(deployment, deployment_cfg):
@@ -11,8 +12,8 @@ def apply(deployment, deployment_cfg):
         f"Applying Deployment Environment Variables for {deployment.release_name}..."
     )
 
-    current_vars = parse_current(deployment)
-    new_vars = parse_new(deployment_cfg)
+    current_vars = parse_var_attrs(deployment.environment_variables)
+    new_vars = parse_from_config(key="key", section=deployment_cfg.get("environmentVariables", []))
 
     vars_to_add, vars_to_update, vars_to_delete = compare(current_vars, new_vars)
 
@@ -30,17 +31,10 @@ def apply(deployment, deployment_cfg):
         )
 
 
-def parse_current(deployment):
+def parse_var_attrs(environment_variables):
     return {
         env_var.key: env_var.__json_data__
-        for env_var in deployment.environment_variables
-    }
-
-
-def parse_new(deployment_cfg):
-    return {
-        env_var["key"]: env_var
-        for env_var in deployment_cfg.get("environmentVariables", [])
+        for env_var in environment_variables
     }
 
 

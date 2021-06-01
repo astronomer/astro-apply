@@ -1,29 +1,15 @@
 import copy
 import itertools
 import logging
-import os
 from copy import deepcopy
 from typing import Dict, Optional, Tuple
 
 from deepdiff import DeepDiff
-from dotenv import dotenv_values
 from sgqlc.endpoint.http import HTTPEndpoint
 from sgqlc.operation import Operation
 
 from client import houston_schema
-
-REQUIRED_VARS = [
-    "BASEURL",  # e.g.  astro.mydomain.com
-    "TOKEN",  # either a service account token or a temporary one obtained from app.BASEURL/token
-]
-env = {**dotenv_values(".env"), **os.environ}
-
-for var in REQUIRED_VARS:
-    if var not in env:
-        raise SystemExit(f"Required env var {var} not found! Exiting!")
-
-URL = f'https://houston.{env["BASEURL"]}/v1'
-HEADERS = {"Authorization": env["TOKEN"]}
+from settings import URL, HEADERS
 
 
 def run(fn, is_mutation: bool = False, **kwargs):
@@ -78,3 +64,9 @@ def apply_defaults(config):
                 deployment[key].append(item)
 
     return config
+
+
+def parse_from_config(key, section):
+    return {
+        item[key]: item for item in section
+    }

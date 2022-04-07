@@ -1,6 +1,5 @@
 import os
 
-import pytest
 import yaml
 from click.testing import CliRunner
 from dotenv import load_dotenv
@@ -28,6 +27,7 @@ def test__main__fetch():
     load_dotenv()
     runner = CliRunner()
     with runner.isolated_filesystem():
+        # noinspection PyTypeChecker
         result = runner.invoke(
             cli,
             [

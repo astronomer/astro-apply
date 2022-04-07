@@ -3,6 +3,9 @@ An idempotent `apply` functionality, like `kubectl apply` - but for Astronomer C
 
 Utilizes a `config.yaml` and a GraphQL API to apply a configuration.
 
+*NOTE:* This could is maintained separately from the APIs it utilizes. 
+There is no guarantee it will continue to work, nor be fixed promptly if it stops working
+
 # Installation
 ```shell
 pip install git+https://github.com/astronomer/astro-apply.git#egg=astro-apply
@@ -107,7 +110,18 @@ $ astro-apply
 - Workspaces CRUD
 - Deployments CRUD
 
+# How Do I Find My Workspace Id?
+## Astronomer Cloud
+In Astronomer Cloud - your workspace ID will be in your URL (e.g. `cl1pjmnpr63981fyo4whfab04` in this screenshot):
+
+![astronomer_cloud_workspace_id.png](resources/images/astronomer_cloud_workspace_id.png)
+
+## Astronomer Software / Nebula
+In Astronomer Software / Nebula - your workspace ID will be in your URL (e.g. `cku5ts93v10865546pinw23j7m7g` in this screenshot):
+
+![astronomer_software_workspace_id.png](resources/images/astronomer_software_workspace_id.png)
 
 # User Mapping
 Due to there being only Workspace RBAC in Astronomer Cloud - Role Mapping is required:
+
 ![](./resources/images/user_migrate.png)

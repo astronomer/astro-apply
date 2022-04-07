@@ -1,6 +1,7 @@
 houston_schema.*
 .env
 venv
+slowtest/
 .pytest_cache
 *.pyc
 /old/

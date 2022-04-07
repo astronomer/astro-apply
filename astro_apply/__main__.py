@@ -23,32 +23,7 @@ d = {"show_default": True, "show_envvar": True}
 fd = {"show_default": True, "show_envvar": True, "is_flag": True}
 rp = {"prompt": True, "required": True}
 
-
-class OptionPromptNull(click.Option):
-    _value_key = "_default_val"
-
-    def __init__(self, *args, **kwargs):
-        self.default_option = kwargs.pop("default_option", None)
-        super().__init__(*args, **kwargs)
-
-    def get_default(self, ctx, **kwargs):
-        if not hasattr(self, self._value_key):
-            if self.default_option is None:
-                default = super().get_default(ctx)
-            else:
-                arg = ctx.params[self.default_option]
-                default = self.type_cast_value(ctx, self.default(arg))
-            setattr(self, self._value_key, default)
-        return getattr(self, self._value_key)
-
-    def prompt_for_value(self, ctx):
-        default = self.get_default(ctx)
-
-        # only prompt if the default value is None
-        if default is None:
-            return super().prompt_for_value(ctx)
-
-        return default
+DEFAULT_FILE = "config.yaml"
 
 
 @click.group()
@@ -83,8 +58,6 @@ def cli():
 @click.option(
     "--output-file",
     "-f",
-    prompt=True,
-    default="config.yaml",
     **d,
     type=click.Path(dir_okay=False, writable=True),
     help="Output file to write to or merge with",
@@ -92,9 +65,6 @@ def cli():
 @click.option(
     "--workspace-service-account-token",
     "-t",
-    cls=OptionPromptNull,
-    default_option="yes",
-    default=lambda x: x,
     **d,
     help="Workspace Service Account Token - input hidden when prompted for",
 )
@@ -118,6 +88,17 @@ def fetch(
             )
         url = houston_basedomain_to_api(basedomain)
         client = SoftwareClient(url, workspace_service_account_token)
+
+    if output_file is None:
+        if yes:
+            output_file = DEFAULT_FILE
+        else:
+            output_file = click.prompt(
+                text="Output file",
+                default=DEFAULT_FILE,
+                type=click.Path(dir_okay=False, writable=True),
+                value_proc=click.Path(dir_okay=False, writable=True),
+            )
 
     confirm_or_exit(
         f"Querying {url} for Workspace '{source_workspace_id}' configurations, saving to {output_file} - Continue?", yes
@@ -149,8 +130,6 @@ def fetch(
 @click.option(
     "--input-file",
     "-f",
-    prompt=True,
-    default="config.yaml",
     **d,
     type=click.Path(dir_okay=False, readable=True, exists=True),
     help="Input configuration file to read - see README.md for a sample",
@@ -158,6 +137,17 @@ def fetch(
 @click.option("--yes", "-y", is_flag=True, default=False, help="Skip confirmation prompts")
 def apply(input_file: str, yes: bool):
     """Apply a configuration to an Astronomer Cloud workspaces"""
+
+    if input_file is None:
+        if yes:
+            input_file = DEFAULT_FILE
+        else:
+            input_file = click.prompt(
+                text="Input file",
+                default=DEFAULT_FILE,
+                type=click.Path(dir_okay=False, readable=True, exists=True),
+                value_proc=click.Path(dir_okay=False, readable=True, exists=True),
+            )
 
     with open(input_file) as f:
         config = yaml.safe_load(f)

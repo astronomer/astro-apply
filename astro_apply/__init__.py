@@ -37,7 +37,7 @@ def echo_existing_users(users_in_both: Set[str]) -> None:
 
 def update_users(_client: CloudClient, users_to_update: Dict[str, str], workspace_id: str, yes: bool) -> None:
     if len(users_to_update) and (
-        click.confirm(f"Found {len(users_to_update)} users to update: {users_to_update} - Continue?") or yes
+        yes or click.confirm(f"Found {len(users_to_update)} users to update: {users_to_update} - Continue?")
     ):
         for user, role in users_to_update.items():
             click.echo(f"Updating user: {user} with role: {role}")
@@ -46,7 +46,7 @@ def update_users(_client: CloudClient, users_to_update: Dict[str, str], workspac
 
 def add_users(_client: CloudClient, users_to_add: Dict[str, str], workspace_id: str, yes: bool) -> None:
     if len(users_to_add) and (
-        click.confirm(f"Found {len(users_to_add)} users to add: {users_to_add} - Continue?") or yes
+        yes or click.confirm(f"Found {len(users_to_add)} users to add: {users_to_add} - Continue?")
     ):
         for user, role in users_to_add.items():
             click.echo(f"Adding user: {user} with role: {role}")
@@ -55,7 +55,7 @@ def add_users(_client: CloudClient, users_to_add: Dict[str, str], workspace_id: 
 
 def delete_users(users_to_delete: Set[str], _client: CloudClient, workspace_id: str, yes: bool) -> None:
     if len(users_to_delete) and (
-        click.confirm(f"Found {len(users_to_delete)} users in to delete: {users_to_delete} - Continue?") or yes
+        yes or click.confirm(f"Found {len(users_to_delete)} users in to delete: {users_to_delete} - Continue?")
     ):
         for user in users_to_delete:
             click.echo(f"Deleting user: {user}")

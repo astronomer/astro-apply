@@ -1,0 +1,9 @@
+houston_schema.*
+.env
+venv
+.pytest_cache
+*.pyc
+/old/
+.idea
+.DS_Store
+config.yaml

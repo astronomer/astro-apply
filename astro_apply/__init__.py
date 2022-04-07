@@ -1,11 +1,10 @@
-from typing import Dict
-
-import os
+from typing import Dict, Set
 
 import click
 import yaml
 from click.exceptions import Exit
-from dotenv import dotenv_values
+
+from astro_apply.client import CloudClient
 
 
 def confirm_or_exit(msg: str, yes: bool = False) -> None:
@@ -16,11 +15,6 @@ def confirm_or_exit(msg: str, yes: bool = False) -> None:
 
 def houston_basedomain_to_api(source_basedomain: str) -> str:
     return f"https://houston.{source_basedomain}/v1"
-
-
-def fetch_from_env(key):
-    env = {**dotenv_values(".env"), **os.environ}
-    return env.get(key)
 
 
 def get_config_from_users_and_roles(
@@ -34,3 +28,35 @@ def get_config_from_users_and_roles(
     'workspace_abcd1234:\n  users:\n    username_a: WORKSPACE_ADMIN\n    username_b: WORKSPACE_EDITOR\n    username_c: WORKSPACE_VIEWER\n'
     """
     return {workspace_id: {"users": users_and_roles}}
+
+
+def echo_existing_users(users_in_both: Set[str]) -> None:
+    if len(users_in_both):
+        click.echo(f"Found {len(users_in_both)} users in both: {users_in_both}")
+
+
+def update_users(_client: CloudClient, users_to_update: Dict[str, str], workspace_id: str, yes: bool) -> None:
+    if len(users_to_update) and (
+        click.confirm(f"Found {len(users_to_update)} users to update: {users_to_update} - Continue?") or yes
+    ):
+        for user, role in users_to_update.items():
+            click.echo(f"Updating user: {user} with role: {role}")
+            _client.update_workspace_user_with_role(user, role, workspace_id)
+
+
+def add_users(_client: CloudClient, users_to_add: Dict[str, str], workspace_id: str, yes: bool) -> None:
+    if len(users_to_add) and (
+        click.confirm(f"Found {len(users_to_add)} users to add: {users_to_add} - Continue?") or yes
+    ):
+        for user, role in users_to_add.items():
+            click.echo(f"Adding user: {user} with role: {role}")
+            _client.add_workspace_user_with_role(user, role, workspace_id)
+
+
+def delete_users(users_to_delete: Set[str], _client: CloudClient, workspace_id: str, yes: bool) -> None:
+    if len(users_to_delete) and (
+        click.confirm(f"Found {len(users_to_delete)} users in to delete: {users_to_delete} - Continue?") or yes
+    ):
+        for user in users_to_delete:
+            click.echo(f"Deleting user: {user}")
+            _client.delete_workspace_user(user, workspace_id)

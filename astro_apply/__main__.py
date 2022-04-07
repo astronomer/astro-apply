@@ -1,5 +1,3 @@
-from typing import Set
-
 from pathlib import Path
 
 import click
@@ -9,13 +7,48 @@ from click import UsageError
 from dotenv import load_dotenv
 from gql.transport.exceptions import TransportQueryError
 
-from astro_apply import confirm_or_exit, get_config_from_users_and_roles, houston_basedomain_to_api
-from astro_apply.client import CloudClient, SoftwareClient
+from astro_apply import (
+    add_users,
+    confirm_or_exit,
+    delete_users,
+    echo_existing_users,
+    get_config_from_users_and_roles,
+    houston_basedomain_to_api,
+    update_users,
+)
+from astro_apply.client import CloudClient, SoftwareClient, get_users_to_update_for_workspace
 from astro_apply.constants import ASTRO_CLOUD_API_URL, ASTRO_CLOUD_BASEDOMAIN, NEBULA_BASEDOMAIN_URL
 
 d = {"show_default": True, "show_envvar": True}
 fd = {"show_default": True, "show_envvar": True, "is_flag": True}
 rp = {"prompt": True, "required": True}
+
+
+class OptionPromptNull(click.Option):
+    _value_key = "_default_val"
+
+    def __init__(self, *args, **kwargs):
+        self.default_option = kwargs.pop("default_option", None)
+        super().__init__(*args, **kwargs)
+
+    def get_default(self, ctx, **kwargs):
+        if not hasattr(self, self._value_key):
+            if self.default_option is None:
+                default = super().get_default(ctx)
+            else:
+                arg = ctx.params[self.default_option]
+                default = self.type_cast_value(ctx, self.default(arg))
+            setattr(self, self._value_key, default)
+        return getattr(self, self._value_key)
+
+    def prompt_for_value(self, ctx):
+        default = self.get_default(ctx)
+
+        # only prompt if the default value is None
+        if default is None:
+            return super().prompt_for_value(ctx)
+
+        return default
 
 
 @click.group()
@@ -59,6 +92,9 @@ def cli():
 @click.option(
     "--workspace-service-account-token",
     "-t",
+    cls=OptionPromptNull,
+    default_option="yes",
+    default=lambda x: x,
     **d,
     help="Workspace Service Account Token - input hidden when prompted for",
 )
@@ -78,7 +114,7 @@ def fetch(
     else:
         if workspace_service_account_token is None:
             workspace_service_account_token = click.prompt(
-                text="Workspace Service Account Token:", hide_input=True, type=str
+                text="Workspace Service Account Token", hide_input=True, type=str
             )
         url = houston_basedomain_to_api(basedomain)
         client = SoftwareClient(url, workspace_service_account_token)
@@ -107,18 +143,6 @@ def fetch(
     with click.open_file(output_file, mode="w") as f:
         yaml.safe_dump(config, f)
     click.echo(f"Wrote to {output_file}!")
-
-
-# def update_workspace(workspace_id: str, config_users_and_roles: Dict[str, str], client: CloudClient, input_file: str, yes: bool):
-
-
-def delete_users(users_to_delete: Set[str], client: CloudClient, workspace_id: str):
-    if len(users_to_delete) and click.confirm(
-        f"Found {len(users_to_delete)} users in to delete: {users_to_delete} - Continue?"
-    ):
-        for user in users_to_delete:
-            click.echo(f"Deleting user: {user}")
-            client.delete_workspace_user(user, workspace_id)
 
 
 @cli.command()
@@ -155,40 +179,22 @@ def apply(input_file: str, yes: bool):
             yes,
         )
 
-        users_to_update, users_to_add, users_to_delete, users_in_both = client.get_users_to_update_for_workspace(
-            config_users_and_roles, workspace_id
+        existing_users_and_roles = client.get_workspace_users_and_roles(workspace_id)
+
+        users_to_update, users_to_add, users_to_delete, users_in_both = get_users_to_update_for_workspace(
+            config_users_and_roles, existing_users_and_roles
         )
 
         echo_existing_users(users_in_both)
 
-        update_users(client, users_to_update, workspace_id)
+        update_users(client, users_to_update, workspace_id, yes)
 
-        add_users(client, users_to_add, workspace_id)
+        add_users(client, users_to_add, workspace_id, yes)
 
-        delete_users(users_to_delete, client, workspace_id)
-
-
-def echo_existing_users(users_in_both):
-    if len(users_in_both):
-        click.echo(f"Found {len(users_in_both)} users in both: {users_in_both}")
-
-
-def update_users(client, users_to_update, workspace_id):
-    if len(users_to_update) and click.confirm(
-        f"Found {len(users_to_update)} users to update: {users_to_update} - Continue?"
-    ):
-        for user, role in users_to_update.items():
-            click.echo(f"Updating user: {user} with role: {role}")
-            client.update_workspace_user_with_role(user, role, workspace_id)
-
-
-def add_users(client, users_to_add, workspace_id):
-    if len(users_to_add) and click.confirm(f"Found {len(users_to_add)} users to add: {users_to_add} - Continue?"):
-        for user, role in users_to_add.items():
-            click.echo(f"Adding user: {user} with role: {role}")
-            client.add_workspace_user_with_role(user, role, workspace_id)
+        delete_users(users_to_delete, client, workspace_id, yes)
 
 
 if __name__ == "__main__":
+    # https://click.palletsprojects.com/en/8.1.x/options/#values-from-environment-variables
     load_dotenv()
-    cli(auto_envvar_prefix="astro_apply")
+    cli(auto_envvar_prefix="ASTRO_APPLY")

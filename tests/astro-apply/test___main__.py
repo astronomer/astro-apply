@@ -6,6 +6,7 @@ from click.testing import CliRunner
 from dotenv import load_dotenv
 
 from astro_apply.__main__ import cli
+from tests.conftest import manual_tests
 
 TEST_CONFIG = """
 cktvzwx95452932byvy2vfgas9q:
@@ -22,9 +23,7 @@ cktvzwx95452932byvy2vfgas9q:
 """
 
 
-@pytest.mark.skipif(
-    not os.getenv("MANUAL_TESTS"), reason="Requires Nebula Workspace SA Secret in .env, and is brittle/stateful"
-)
+@manual_tests
 def test__main__fetch():
     load_dotenv()
     runner = CliRunner()

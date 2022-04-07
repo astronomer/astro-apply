@@ -228,7 +228,7 @@ ASTRO_CLOUD_PRIVATE_WORKSPACES = """
   }
 """
 
-ASTRO_CLOUD_ADD_WORKSPACE_USER_WITH_ROLE = """
+ASTRO_CLOUD_PRIVATE_ADD_WORKSPACE_USER_WITH_ROLE = """
 mutation workspaceUserRoleCreate(
     $workspaceId: Id
     $email: String!
@@ -246,13 +246,13 @@ mutation workspaceUserRoleCreate(
 }
 """
 
-ASTRO_CLOUD_UPDATE_WORKSPACE_USER_ROLE = """
+ASTRO_CLOUD_PRIVATE_UPDATE_WORKSPACE_USER_ROLE = """
   mutation workspaceUserRoleUpdate($workspaceId: Id!, $email: String!, $role: Role!) {
     workspaceUserRoleUpdate(workspaceId: $workspaceId, email: $email, role: $role)
   }
 """
 
-ASTRO_CLOUD_DELETE_WORKSPACE_USER = """
+ASTRO_CLOUD_PRIVATE_DELETE_WORKSPACE_USER = """
   mutation workspaceUserRoleDelete($workspaceId: Id!, $userId: Id!) {
     workspaceUserRoleDelete(workspaceId: $workspaceId, userId: $userId) {
       id
@@ -286,7 +286,7 @@ ASTRO_CLOUD_UPDATE_ENV_VARS = """
 
   {
   "input": {
-    "deploymentId": "cl1l37xtd126571f1fr58jywta",
+    "deploymentId": "xxxxxxxxxxxxxxxxxxxxxxxxxx",
     "environmentVariables": [
       {
         "isSecret": false,

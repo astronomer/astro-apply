@@ -1,14 +1,15 @@
 import os
 
 import pytest
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from gql.transport.exceptions import TransportQueryError
 from pytest_mock import MockerFixture
 
 import astro_apply
 from astro_apply import houston_basedomain_to_api
-from astro_apply.client import CloudClient, SoftwareClient
-from astro_apply.constants import ASTRO_CLOUD_DELETE_WORKSPACE_USER, NEBULA_BASEDOMAIN_URL
+from astro_apply.client import CloudClient, SoftwareClient, get_users_to_update_for_workspace
+from astro_apply.constants import ASTRO_CLOUD_PRIVATE_DELETE_WORKSPACE_USER, NEBULA_BASEDOMAIN_URL
+from tests.conftest import manual_tests
 
 # thanks frank!
 e2e_test_user = "frank@astronomer.io"
@@ -20,15 +21,13 @@ e2e_test_workspace_id = "cktvzwx95452932byvy2vfgas9q"
 e2e_nebula_customer_success_workspace_id = "cku5ts93v10865546pinw23j7m7g"
 
 
-@pytest.mark.skipif(
-    not os.getenv("MANUAL_TESTS"), reason="Requires Nebula Workspace SA Secret in .env, and is brittle/stateful"
-)
+@manual_tests
 def test_software_client_get_workspace_users_and_roles():
     # fetch SA Token from ASTRO_APPLY_FETCH_WORKSPACE_SERVICE_ACCOUNT_TOKEN in .env or env
-    load_dotenv()
+    sa_token = {**dotenv_values(".env"), **os.environ}.get("ASTRO_APPLY_FETCH_WORKSPACE_SERVICE_ACCOUNT_TOKEN")
 
     actual = SoftwareClient(
-        url=houston_basedomain_to_api(NEBULA_BASEDOMAIN_URL),
+        url=houston_basedomain_to_api(NEBULA_BASEDOMAIN_URL), workspace_sa_token=sa_token
     ).get_workspace_users_and_roles(e2e_nebula_customer_success_workspace_id)
     expected = {
         "chronek@astronomer.io": "WORKSPACE_ADMIN",
@@ -44,9 +43,7 @@ def test_software_client_get_workspace_users_and_roles():
     assert actual == expected
 
 
-@pytest.mark.skipif(
-    not os.getenv("MANUAL_TESTS"), reason="Requires astrocloud auth login to be ran, and is brittle/stateful"
-)
+@manual_tests
 def test_cloud_client_get_workspace_users_and_roles():
     client = CloudClient()
     actual = client.get_workspace_users_and_roles(e2e_test_workspace_id)
@@ -66,9 +63,7 @@ def test_cloud_client_get_workspace_users_and_roles():
     assert actual == expected
 
 
-@pytest.mark.skipif(
-    not os.getenv("MANUAL_TESTS"), reason="Requires astrocloud auth login to be ran, and is brittle/stateful"
-)
+@manual_tests
 def test_cloud_client_e2e():
     client = CloudClient()
 
@@ -101,19 +96,29 @@ def test_cloud_client_e2e():
     assert e.type is RuntimeError, "When deleting a user, we first check to see if the user is there in the first place"
 
 
-def test_cloud_client_get_users_to_update_for_workspace(mocker: MockerFixture):
-    # noinspection PyUnusedLocal
-    def mock_get_workspace_users_and_roles(*args):
-        return {"shared": "WORKSPACE_ADMIN", "shared_wrong": "WORKSPACE_ADMIN", "client_only": "WORKSPACE_EDITOR"}
+def test_cloud_client_get_users_to_update_for_workspace():
+    existing_users_and_roles = {
+        "shared": "WORKSPACE_ADMIN",
+        "shared_wrong": "WORKSPACE_ADMIN",
+        "client_only": "WORKSPACE_EDITOR",
+    }
 
     test_users = {"shared": "WORKSPACE_ADMIN", "shared_wrong": "WORKSPACE_VIEWER", "config_only": "WORKSPACE_EDITOR"}
 
-    mocker.patch.object(CloudClient, "get_workspace_users_and_roles", mock_get_workspace_users_and_roles)
-    client = CloudClient()
+    actual_to_update, actual_to_add, actual_to_delete, actual_in_both = get_users_to_update_for_workspace(
+        test_users, existing_users_and_roles
+    )
+    expected_to_update = {"shared_wrong": "WORKSPACE_VIEWER"}
+    assert actual_to_update == expected_to_update
 
-    actual, _, _, _ = client.get_users_to_update_for_workspace(test_users, e2e_test_workspace_id)
-    expected = {"shared_wrong": "WORKSPACE_VIEWER", "config_only": "WORKSPACE_EDITOR"}
-    assert actual == expected
+    expected_to_add = {"config_only": "WORKSPACE_EDITOR"}
+    assert actual_to_add == expected_to_add
+
+    expected_to_delete = {"client_only"}
+    assert actual_to_delete == expected_to_delete
+
+    expected_in_both = {"shared", "shared_wrong"}
+    assert actual_in_both == expected_in_both
 
 
 def test_mock_get_user_id_from_username(mocker: MockerFixture):
@@ -133,6 +138,6 @@ def test_mock_get_user_id_from_username(mocker: MockerFixture):
     # noinspection PyUnresolvedReferences
     astro_apply.client._exec.assert_called_once_with(
         cc.private_client,
-        ASTRO_CLOUD_DELETE_WORKSPACE_USER,
+        ASTRO_CLOUD_PRIVATE_DELETE_WORKSPACE_USER,
         variables={"userId": test_user_id, "workspaceId": e2e_test_workspace_id},
     ), "it calls the private client, with the DELETE sql, with the user_id fetched from  "

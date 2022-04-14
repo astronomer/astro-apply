@@ -23,12 +23,10 @@ e2e_nebula_customer_success_workspace_id = "cku5ts93v10865546pinw23j7m7g"
 
 @manual_tests
 def test_software_client_get_workspace_users_and_roles():
-    # fetch SA Token from ASTRO_APPLY_FETCH_WORKSPACE_SERVICE_ACCOUNT_TOKEN in .env or env
-    sa_token = {**dotenv_values(".env"), **os.environ}.get("ASTRO_APPLY_FETCH_WORKSPACE_SERVICE_ACCOUNT_TOKEN")
-
-    actual = SoftwareClient(
-        url=houston_basedomain_to_api(NEBULA_BASEDOMAIN_URL), workspace_sa_token=sa_token
-    ).get_workspace_users_and_roles(e2e_nebula_customer_success_workspace_id)
+    # uses `~/.astro/config.yaml` which is gained from `astro auth login gcp0001.us-east4.astronomer.io`
+    actual = SoftwareClient(url=houston_basedomain_to_api(NEBULA_BASEDOMAIN_URL)).get_workspace_users_and_roles(
+        e2e_nebula_customer_success_workspace_id
+    )
     expected = {
         "chronek@astronomer.io": "WORKSPACE_ADMIN",
         "eric@astronomer.io": "WORKSPACE_ADMIN",

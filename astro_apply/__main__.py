@@ -206,13 +206,31 @@ def apply(input_file: str, yes: bool):
             yes,
         )
 
+        _self = client.get_self()
+        authenticated_organization_id = _self.get("self", {}).get("authenticatedOrganizationId")
+        if not authenticated_organization_id:
+            click.echo(
+                "Unable to get 'authenticatedOrganizationId' from 'self' - "
+                "possibly re-run `astrocloud auth login` or report a Github Issue?"
+            )
+            raise Exit(1)
+
+        org_users = set(client.get_org_users_and_roles(organization_id=authenticated_organization_id).keys())
+
         existing_users_and_roles = client.get_workspace_users_and_roles(workspace_id)
 
-        users_to_update, users_to_add, users_to_delete, users_in_both = get_users_to_update_for_workspace(
-            config_users_and_roles, existing_users_and_roles
-        )
+        (
+            users_to_update,
+            users_to_add,
+            users_to_delete,
+            users_in_both,
+            users_unable_to_add,
+        ) = get_users_to_update_for_workspace(config_users_and_roles, existing_users_and_roles, org_users)
 
         echo_existing_users(users_in_both)
+        echo_existing_users(
+            users_unable_to_add, "unable to be added (no user account in Organization, probably need to log in)"
+        )
 
         update_users(client, users_to_update, workspace_id, yes)
 

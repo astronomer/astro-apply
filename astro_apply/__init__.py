@@ -30,9 +30,9 @@ def get_config_from_users_and_roles(
     return {workspace_id: {"users": users_and_roles}}
 
 
-def echo_existing_users(users_in_both: Set[str]) -> None:
-    if len(users_in_both):
-        click.echo(f"Found {len(users_in_both)} users in both: {users_in_both}")
+def echo_existing_users(users: Set[str], msg: str = "in both") -> None:
+    if len(users):
+        click.echo(f"Found {len(users)} users {msg}: {users}")
 
 
 def update_users(_client: CloudClient, users_to_update: Dict[str, str], workspace_id: str, yes: bool) -> None:

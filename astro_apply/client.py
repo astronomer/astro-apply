@@ -22,7 +22,7 @@ from astro_apply.constants import (
     ASTRO_CLOUD_PRIVATE_API_URL,
     ASTRO_CLOUD_PRIVATE_DELETE_WORKSPACE_USER,
     ASTRO_CLOUD_PRIVATE_DEPLOYMENT_SPEC,
-    ASTRO_CLOUD_PRIVATE_UPDATE_ENV_VARS,
+    ASTRO_CLOUD_PRIVATE_ORG_USERS,
     ASTRO_CLOUD_PRIVATE_UPDATE_WORKSPACE_USER_ROLE,
     ASTRO_CLOUD_PRIVATE_WORKSPACE_USERS_AND_ROLES,
     ASTRO_CLOUD_SELF,
@@ -47,10 +47,25 @@ class BearerAuth(AuthBase):
         return r
 
 
+def extract_cloud_org_users_to_rolebindings(results) -> Dict[str, Dict[str, str]]:
+    """extract_cloud_org_users_to_rolebindings -
+    :param results: graphql query results set
+    :return: Dict[str, List[Dict[str, str]]] = {"<username>": { WORKSPACE_ADMIN: abc123, ORGANIZATION_OWNER: abc123 }, ...}
+    """
+    return {
+        user.get("username"): {
+            # e.g. WORKSPACE_ADMIN, ORGANIZATION_OWNER  => cknev9xks05093m1iv15kz01t
+            role.get("scope", {}).get("entityId"): role.get("role", {}).get("name")
+            for role in user.get("roles", [])
+        }
+        for user in results["users"]
+    }
+
+
 def extract_users_to_rolebindings(results, workspace_id_filter: str) -> Dict[str, List[Dict[str, str]]]:
     """extract_users_to_rolebindings -
     Flatten everything a bit
-    mapping username -> [{.role, .workspace.id, .deployment.id, .deployment.label}, ...]
+    mapping {username -> [{.role, .workspace.id, .deployment.id, .deployment.label}, ...]}
     all of the last three might be empty
 
     :param results: graphql query results set
@@ -123,15 +138,16 @@ def filter_and_return_user_id_from_username(results: Any, username: str) -> str:
 
 
 def get_users_to_update_for_workspace(
-    config_users_and_roles: Dict[str, str], existing_users_and_roles: Any
-) -> Tuple[Dict[str, str], Dict[str, str], Set[str], Set[str]]:
-    """
-    :param config_users_and_roles:
-    :param existing_users_and_roles:
-    :return:
-    """
+    config_users_and_roles: Dict[str, str], existing_users_and_roles: Any, org_users: Set[str]
+) -> Tuple[Dict[str, str], Dict[str, str], Set[str], Set[str], Set[str]]:
     users_to_add = {
-        user: config_users_and_roles[user] for user in set(config_users_and_roles).difference(existing_users_and_roles)
+        user: config_users_and_roles[user]
+        for user in set(config_users_and_roles).difference(existing_users_and_roles)
+        if user in org_users
+    }
+
+    users_unable_to_add = {
+        user for user in set(config_users_and_roles).difference(existing_users_and_roles) if user not in org_users
     }
 
     users_in_both = set(config_users_and_roles).intersection(existing_users_and_roles)
@@ -142,7 +158,7 @@ def get_users_to_update_for_workspace(
         if user in existing_users_and_roles and existing_users_and_roles.get(user) != role
     }
 
-    return users_to_update, users_to_add, users_to_delete, users_in_both
+    return users_to_update, users_to_add, users_to_delete, users_in_both, users_unable_to_add
 
 
 def _exec(client, query: str, variables: Dict[str, Any] = None):
@@ -229,9 +245,6 @@ def get_auth_token(astro_or_astrocloud: str):
 class SoftwareClient(GQLClient):
     def __init__(self, url: str, workspace_sa_token: str = None):
         if workspace_sa_token is None:
-            # workspace_service_account_token = click.prompt(
-            #     text="Workspace Service Account Token", hide_input=True, type=str
-            # )
             token = get_auth_token(astro_or_astrocloud="astro")
             self.client = get_software_client(url, token)
         else:
@@ -295,7 +308,6 @@ class CloudClient(GQLClient):
         return {org["name"]: org["id"] for org in _exec(self.client, ASTRO_CLOUD_ORGANIZATIONS)["organizations"]}
 
     def get_self(self) -> Any:
-        """deprecated / unnecessary"""
         return _exec(self.client, ASTRO_CLOUD_SELF)
 
     def add_workspace_user_with_role(self, user: str, role: str, workspace_id: str) -> Any:
@@ -333,3 +345,14 @@ class CloudClient(GQLClient):
             variables={"input": {"deploymentId": deployment_id}},
         )
         return results.get("deployments", [{}])[0].get("deploymentSpec", {}).get("environmentVariablesObjects", [])
+
+    def get_org_users_and_roles(self, organization_id: str) -> Dict[str, Dict[str, str]]:
+        """get_org_users_and_roles
+        :return: Dict[str, List[Dict[str, str]]] = {"<username>": { WORKSPACE_ADMIN: abc123, ORGANIZATION_OWNER: abc123 }, ...}
+        """
+        results = _exec(
+            self.client,
+            ASTRO_CLOUD_PRIVATE_ORG_USERS,
+            variables={"organizationId": organization_id},
+        )
+        return extract_cloud_org_users_to_rolebindings(results)

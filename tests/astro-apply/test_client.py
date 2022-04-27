@@ -1,7 +1,4 @@
-import os
-
 import pytest
-from dotenv import dotenv_values
 from gql.transport.exceptions import TransportQueryError
 from pytest_mock import MockerFixture
 
@@ -101,11 +98,23 @@ def test_cloud_client_get_users_to_update_for_workspace():
         "client_only": "WORKSPACE_EDITOR",
     }
 
-    test_users = {"shared": "WORKSPACE_ADMIN", "shared_wrong": "WORKSPACE_VIEWER", "config_only": "WORKSPACE_EDITOR"}
+    org_users = {"shared", "shared_wrong", "client_only", "config_only"}
 
-    actual_to_update, actual_to_add, actual_to_delete, actual_in_both = get_users_to_update_for_workspace(
-        test_users, existing_users_and_roles
-    )
+    test_users = {
+        "shared": "WORKSPACE_ADMIN",
+        "shared_wrong": "WORKSPACE_VIEWER",
+        "config_only": "WORKSPACE_EDITOR",
+        "config_not_org": "WORKSPACE_ADMIN",
+    }
+
+    (
+        actual_to_update,
+        actual_to_add,
+        actual_to_delete,
+        actual_in_both,
+        actual_unable_to_add,
+    ) = get_users_to_update_for_workspace(test_users, existing_users_and_roles, org_users)
+
     expected_to_update = {"shared_wrong": "WORKSPACE_VIEWER"}
     assert actual_to_update == expected_to_update
 
@@ -117,6 +126,9 @@ def test_cloud_client_get_users_to_update_for_workspace():
 
     expected_in_both = {"shared", "shared_wrong"}
     assert actual_in_both == expected_in_both
+
+    expected_unable_to_add = {"config_not_org"}
+    assert actual_unable_to_add == expected_unable_to_add
 
 
 def test_mock_get_user_id_from_username(mocker: MockerFixture):

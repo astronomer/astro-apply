@@ -334,3 +334,32 @@ ASTRO_CLOUD_PRIVATE_DEPLOYMENT_SPEC = """
     }
   }
 """
+
+ASTRO_CLOUD_PRIVATE_ORG_USERS = """  
+  fragment AuthZRoleBinding on AuthZRoleBinding {
+    role {
+      name
+    }
+    scope {
+      type
+      entityId
+    }
+  }
+
+  fragment User on User {
+    id
+    fullName
+    username
+    avatarUrl
+    roles {
+      ...AuthZRoleBinding
+    }
+    createdAt
+  }
+
+  query users($organizationId: Id) {
+    users(organizationId: $organizationId) {
+      ...User
+    }
+  }
+"""

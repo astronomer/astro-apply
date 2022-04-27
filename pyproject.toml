@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "astro-apply"
-version = "0.1.0"
+version = "0.2.0"
 description = "Like `kubectl apply` - but for Astronomer Cloud."
 authors = ["solutions <solutions@astronomer.io>"]
 readme = "README.md"

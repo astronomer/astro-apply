@@ -1,3 +1,4 @@
+.*-env
 houston_schema.*
 .env
 venv

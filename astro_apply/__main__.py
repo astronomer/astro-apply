@@ -4,6 +4,7 @@ import click
 import deepmerge
 import yaml
 from click import UsageError
+from click.exceptions import Exit
 from dotenv import load_dotenv
 from gql.transport.exceptions import TransportQueryError
 
@@ -66,7 +67,7 @@ def cli():
     "--workspace-service-account-token",
     "-t",
     **d,
-    help="Workspace Service Account Token - input hidden when prompted for",
+    help="Workspace Service Account Token - uses `astro auth login` config, if not given",
 )
 @click.option("--yes", "-y", is_flag=True, default=False, help="Skip confirmation prompts")
 def fetch(
@@ -82,10 +83,6 @@ def fetch(
         client = CloudClient()
         url = ASTRO_CLOUD_API_URL
     else:
-        if workspace_service_account_token is None:
-            workspace_service_account_token = click.prompt(
-                text="Workspace Service Account Token", hide_input=True, type=str
-            )
         url = houston_basedomain_to_api(basedomain)
         client = SoftwareClient(url, workspace_service_account_token)
 
@@ -104,6 +101,27 @@ def fetch(
         f"Querying {url} for Workspace '{source_workspace_id}' configurations, saving to {output_file} - Continue?", yes
     )
 
+    workspaces = client.get_workspaces().get("workspaces", {})
+    all_deployments = [
+        {
+            "workspace_id": workspace.get("id"),
+            "workspace_label": workspace.get("label"),
+            "deployment_id": deployment.get("id"),
+            "deployment_label": deployment.get("label"),
+            "deployment_release_name": deployment.get("releaseName"),
+        }
+        for workspace in workspaces
+        for deployment in workspace.get("deployments")
+        if source_workspace_id == workspace.get("id")
+    ]
+
+    if source_workspace_id not in [_d["workspace_id"] for _d in all_deployments]:
+        click.echo(f"Unable to find {source_workspace_id}, exiting!")
+        raise Exit(1)
+    else:
+        ws_label = [_d["workspace_label"] for _d in all_deployments][0]
+        click.echo(f"Found {source_workspace_id} as {ws_label}, with {len(all_deployments)} deployments")
+
     try:
         users_and_roles = client.get_workspace_users_and_roles(source_workspace_id)
         users_and_roles_sample = ", ".join([f"{u}: {r}" for u, r in list(users_and_roles.items())[:3]])
@@ -120,6 +138,25 @@ def fetch(
     else:
         click.echo(f"Writing content for Workspace '{source_workspace_id}' to {output_file}...")
         config = partial_config
+
+    if basedomain not in ASTRO_CLOUD_BASEDOMAIN:
+        for deployment in all_deployments:
+            env_filename = f".{deployment['deployment_label'].replace(' ', '-').lower()}-env"
+            env_vars = client.get_env_vars(
+                deployment_uuid=deployment["deployment_id"], release_name=deployment["deployment_release_name"]
+            )
+            if len(env_vars):
+                if yes or click.confirm(f"Save Astronomer Environmental Variables to {env_filename}?"):
+                    with click.open_file(env_filename, "w", lazy=True) as f:
+                        f.writelines(f"{v['key']}={v['value']}\n" for v in env_vars)
+                    click.echo(
+                        f"Saved {len(env_vars)} Astronomer Environmental Variables to {env_filename} - "
+                        f"Make sure to fill in Secret values, as they will be blank!"
+                    )
+                else:
+                    click.echo(f"Not saving Astronomer Environmental Variables to {env_filename}!")
+            else:
+                click.echo(f"No Astronomer Environmental Variables found to save to {env_filename} ... skipping...")
 
     with click.open_file(output_file, mode="w") as f:
         yaml.safe_dump(config, f)

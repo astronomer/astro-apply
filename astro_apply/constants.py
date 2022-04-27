@@ -50,6 +50,16 @@ query workspaceUsers($workspaceUuid: Uuid!) {
   }
 }"""
 
+HOUSTON_ENV_VARS = """
+query deploymentVariables($deploymentUuid: Uuid!, $releaseName: String!) {
+  deploymentVariables(deploymentUuid: $deploymentUuid, releaseName: $releaseName) {
+    key
+    value
+    isSecret
+  }
+}
+"""
+
 ASTRO_CLOUD_WORKSPACES = """
 query Workspaces($organizationId: Id!) {
   workspaces(organizationId: $organizationId) {
@@ -270,7 +280,7 @@ query WorkspaceUsers($workspaceUsersId: Id!) {
 """
 
 
-ASTRO_CLOUD_UPDATE_ENV_VARS = """
+ASTRO_CLOUD_PRIVATE_UPDATE_ENV_VARS = """
   fragment EnvironmentVariable on EnvironmentVariable {
     key
     value
@@ -283,22 +293,44 @@ ASTRO_CLOUD_UPDATE_ENV_VARS = """
       ...EnvironmentVariable
     }
   }
+"""
 
-  {
-  "input": {
-    "deploymentId": "xxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "environmentVariables": [
-      {
-        "isSecret": false,
-        "key": "MY_VAR",
-        "value": "asdfasdf"
-      },
-      {
-        "isSecret": true,
-        "key": "TEST",
-        "value": "asdfadf"
-      }
-    ]
+ASTRO_CLOUD_PRIVATE_DEPLOYMENT_SPEC = """
+  fragment EnvironmentVariable on EnvironmentVariable {
+    key
+    value
+    isSecret
+    updatedAt
   }
-}
+
+  fragment DeploymentSpec on DeploymentSpec {
+    executor
+    scheduler {
+      au
+      replicas
+      cpuMillis
+      memoryMiB
+    }
+    workers {
+      au
+      cpuMillis
+      memoryMiB
+    }
+    environmentVariablesObjects {
+      ...EnvironmentVariable
+    }
+    image {
+      tag
+    }
+    updatedAt
+  }
+
+  query deploymentsSpec($input: DeploymentsInput) {
+    deployments(input: $input) {
+      id
+      deploymentSpec {
+        ...DeploymentSpec
+      }
+    }
+  }
 """

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import logging
 from json import JSONDecodeError
@@ -21,11 +21,14 @@ from astro_apply.constants import (
     ASTRO_CLOUD_PRIVATE_ADD_WORKSPACE_USER_WITH_ROLE,
     ASTRO_CLOUD_PRIVATE_API_URL,
     ASTRO_CLOUD_PRIVATE_DELETE_WORKSPACE_USER,
+    ASTRO_CLOUD_PRIVATE_DEPLOYMENT_SPEC,
+    ASTRO_CLOUD_PRIVATE_UPDATE_ENV_VARS,
     ASTRO_CLOUD_PRIVATE_UPDATE_WORKSPACE_USER_ROLE,
     ASTRO_CLOUD_PRIVATE_WORKSPACE_USERS_AND_ROLES,
     ASTRO_CLOUD_SELF,
     ASTRO_CLOUD_WORKSPACE_USERS_AND_IDS,
     ASTRO_CLOUD_WORKSPACES,
+    HOUSTON_ENV_VARS,
     HOUSTON_WORKSPACE_USERS_AND_ROLES,
     HOUSTON_WORKSPACES,
     SOFTWARE_TO_CLOUD_ROLE_MAPPINGS,
@@ -148,19 +151,91 @@ def _exec(client, query: str, variables: Dict[str, Any] = None):
     return client.execute(gql(query), **extra)
 
 
+def get_software_client(
+    url,
+    refresh_token,
+):
+    transport = RequestsHTTPTransport(
+        url=url,
+        auth=BearerAuth(refresh_token),
+        verify=True,
+        retries=3,
+    )
+    return Client(transport=transport, fetch_schema_from_transport=True)
+
+
+def validate_workspace_role_or_raise(role: str, user: str, workspace_id: str) -> None:
+    if role not in SOFTWARE_TO_CLOUD_ROLE_MAPPINGS:
+        raise RuntimeError(
+            f"unable to update user {user}, role {role}, in workspace {workspace_id} - role not in {SOFTWARE_TO_CLOUD_ROLE_MAPPINGS.keys()}"
+        )
+
+
 class GQLClient:
     pass
 
 
+def get_auth_token(astro_or_astrocloud: str):
+    config_file_path = Path.home() / Path(f".{astro_or_astrocloud}/config.yaml")
+    if not config_file_path.exists():
+        click.echo(
+            f"Unable to find initialized {astro_or_astrocloud} config file. Please run `{astro_or_astrocloud} auth login` first."
+        )
+        raise Exit(1)
+
+    config = yaml.safe_load(config_file_path.open())
+
+    if "contexts" not in config or "context" not in config:
+        click.echo(
+            f"Unable to find 'context' and/or 'contexts' keys in {astro_or_astrocloud} config file. "
+            f"Please run `{astro_or_astrocloud} auth login` and/or report an error to solutions@astronomer.io."
+        )
+        raise Exit(1)
+
+    current_context = config["contexts"][config["context"].replace(".", "_")]
+
+    # cloud uses refresh token, nebula uses token
+    refresh_token = current_context.get("refreshtoken", current_context.get("token"))
+
+    if astro_or_astrocloud == "astro":
+        return refresh_token
+
+    # else - astrocloud
+    res = requests.post(
+        f"{ASTRO_CLOUD_AUTH_DOMAIN}/oauth/token",
+        data=urlencode(
+            {"client_id": ASTRO_CLOUD_AUTH_CLIENT_ID, "grant_type": "refresh_token", "refresh_token": refresh_token}
+        ),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    if res.ok:
+        try:
+            if "access_token" in res.json():
+                return res.json()["access_token"]
+            else:
+                has_error = True
+        except JSONDecodeError:
+            has_error = True
+    else:
+        has_error = True
+
+    if has_error:
+        click.echo(f"Token refresh failed - check your internet, or try running {astro_or_astrocloud} auth login first")
+        click.echo(f"{res.status_code} - {res.content}")
+        raise Exit(1)
+
+
 class SoftwareClient(GQLClient):
     def __init__(self, url: str, workspace_sa_token: str = None):
-        transport = RequestsHTTPTransport(
-            url=url,
-            auth=BearerAuth(workspace_sa_token),
-            verify=True,
-            retries=3,
-        )
-        self.client = Client(transport=transport, fetch_schema_from_transport=True)
+        if workspace_sa_token is None:
+            # workspace_service_account_token = click.prompt(
+            #     text="Workspace Service Account Token", hide_input=True, type=str
+            # )
+            token = get_auth_token(astro_or_astrocloud="astro")
+            self.client = get_software_client(url, token)
+        else:
+            self.client = get_software_client(url, workspace_sa_token)
 
     def get_workspaces(self):
         return _exec(self.client, HOUSTON_WORKSPACES)
@@ -177,69 +252,33 @@ class SoftwareClient(GQLClient):
         users_to_rolebindings = extract_users_to_rolebindings(result, workspace_id)
         return user_to_highest_rolebinding(users_to_rolebindings)
 
+    def get_env_vars(self, deployment_uuid: Optional[str], release_name: Optional[str]) -> List[Dict[str, Any]]:
+        _vars = {}
+        if deployment_uuid is None and release_name is None:
+            raise RuntimeError("Both deployment_uuid and release_name are None - cannot proceed")
 
-def validate_workspace_role_or_raise(role: str, user: str, workspace_id: str) -> None:
-    if role not in SOFTWARE_TO_CLOUD_ROLE_MAPPINGS:
-        raise RuntimeError(
-            f"unable to update user {user}, role {role}, in workspace {workspace_id} - role not in {SOFTWARE_TO_CLOUD_ROLE_MAPPINGS.keys()}"
-        )
+        if deployment_uuid:
+            _vars["deploymentUuid"] = deployment_uuid
+
+        if release_name:
+            _vars["releaseName"] = release_name
+
+        return _exec(self.client, HOUSTON_ENV_VARS, _vars)["deploymentVariables"]
 
 
 class CloudClient(GQLClient):
     def __init__(self):
-        astrocloud_config_file = Path.home() / Path(".astrocloud/config.yaml")
-        if not astrocloud_config_file.exists():
-            click.echo("Unable to find initialized astrocloud config file. Please run `astrocloud auth login` first.")
-            raise Exit(1)
-
-        astrocloud_config = yaml.safe_load(astrocloud_config_file.open())
-
-        if "contexts" not in astrocloud_config or "context" not in astrocloud_config:
-            click.echo(
-                "Unable to find 'context' and/or 'contexts' keys in astrocloud config file. "
-                "Please run `astrocloud auth login` and/or report an error to solutions@astronomer.io."
-            )
-            raise Exit(1)
-
-        current_context = astrocloud_config["contexts"][astrocloud_config["context"].replace(".", "_")]
-        refresh_token = current_context.get("refreshtoken")
-
-        has_error = False
-        res = requests.post(
-            f"{ASTRO_CLOUD_AUTH_DOMAIN}/oauth/token",
-            data=urlencode(
-                {"client_id": ASTRO_CLOUD_AUTH_CLIENT_ID, "grant_type": "refresh_token", "refresh_token": refresh_token}
-            ),
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        token = get_auth_token(astro_or_astrocloud="astrocloud")
+        self.client = Client(
+            transport=RequestsHTTPTransport(url=ASTRO_CLOUD_API_URL, auth=BearerAuth(token), verify=True, retries=3),
+            fetch_schema_from_transport=False,
         )
-
-        if not res.ok:
-            has_error = True
-        else:
-            try:
-                if "access_token" not in res.json():
-                    has_error = True
-                else:
-                    access_token = res.json()["access_token"]
-                    self.client = Client(
-                        transport=RequestsHTTPTransport(
-                            url=ASTRO_CLOUD_API_URL, auth=BearerAuth(access_token), verify=True, retries=3
-                        ),
-                        fetch_schema_from_transport=False,
-                    )
-                    self.private_client = Client(
-                        transport=RequestsHTTPTransport(
-                            url=ASTRO_CLOUD_PRIVATE_API_URL, auth=BearerAuth(access_token), verify=True, retries=3
-                        ),
-                        fetch_schema_from_transport=False,
-                    )
-            except JSONDecodeError:
-                has_error = True
-
-        if has_error:
-            click.echo("Token refresh failed - check your internet, or try running astrocloud auth login first")
-            click.echo(f"{res.status_code} - {res.content}")
-            raise Exit(1)
+        self.private_client = Client(
+            transport=RequestsHTTPTransport(
+                url=ASTRO_CLOUD_PRIVATE_API_URL, auth=BearerAuth(token), verify=True, retries=3
+            ),
+            fetch_schema_from_transport=False,
+        )
 
     def get_workspace_users_and_roles(self, workspace_id: str) -> Dict[str, str]:
         result = _exec(
@@ -249,7 +288,6 @@ class CloudClient(GQLClient):
         return user_to_highest_rolebinding(users_to_rolebindings)
 
     def get_workspaces(self):
-        """deprecated / unnecessary - we have workspaces in the config file"""
         for _, org_id in self.get_organizations().items():
             print(org_id, _exec(self.client, ASTRO_CLOUD_WORKSPACES, variables={"organizationId": org_id}))
 
@@ -287,3 +325,11 @@ class CloudClient(GQLClient):
     def get_user_id_from_username(self, username: str, workspace_id: str) -> str:
         results = _exec(self.client, ASTRO_CLOUD_WORKSPACE_USERS_AND_IDS, variables={"workspaceUsersId": workspace_id})
         return filter_and_return_user_id_from_username(results, username)
+
+    def get_env_vars(self, deployment_id: str) -> Dict[str, str]:
+        results = _exec(
+            self.private_client,
+            ASTRO_CLOUD_PRIVATE_DEPLOYMENT_SPEC,
+            variables={"input": {"deploymentId": deployment_id}},
+        )
+        return results.get("deployments", [{}])[0].get("deploymentSpec", {}).get("environmentVariablesObjects", [])

@@ -42,15 +42,18 @@ Options:
 ### Requirements
 Requires a 
 - Workspace Service Account Token for Astronomer Software or Astronomer Nebula
+- (or, instead ) `astro auth login` to be run and user to be authenticated correctly
 - `astrocloud auth login` to be run and user to be authenticated correctly
 
-### Creating
+### Obtaining a Workspace Service Account Token for Astronomer Software/Nebula
 - navigate to "Service Accounts" to 
 ![](./resources/images/service_account_1.png)
 
 ![](./resources/images/service_account_2.png)
 
 ## `apply`
+*note*: currently only `apply`s against Astronomer Cloud.
+
 ```shell
 astro-apply apply --help
 Usage: astro-apply apply [OPTIONS]
@@ -104,9 +107,9 @@ $ astro-apply
 - Workspace Users + Roles CRUD
   - Due to API Limitations - only existing organization users can be imported - which will mean that the tool may need to be re-run a number of times
   - additionally - some mapping is required from Astronomer Software/Nebula to Astronomer Cloud - see image in [#user-mapping](#user-mapping)
+- Env Variables CRUD
 
 # Future Functionality
-- Env Variables CRUD
 - Workspaces CRUD
 - Deployments CRUD
 

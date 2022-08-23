@@ -42,8 +42,8 @@ Options:
 ### Requirements
 Requires a 
 - Workspace Service Account Token for Astronomer Software or Astronomer Nebula
-- (or, instead ) `astro auth login` to be run and user to be authenticated correctly
-- `astrocloud auth login` to be run and user to be authenticated correctly
+- (or, instead ) `astro login` to be run and user to be authenticated correctly
+- `astro login` to be run and user to be authenticated correctly
 
 ### Obtaining a Workspace Service Account Token for Astronomer Software/Nebula
 - navigate to "Service Accounts" to 
@@ -69,7 +69,7 @@ Options:
 
 ### Requirements
 Requires a 
-- `astrocloud auth login` to be run and user to be authenticated correctly
+- `astro login` to be run and user to be authenticated correctly
 
 # `config.yaml` Example
 ```yaml

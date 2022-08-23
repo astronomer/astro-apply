@@ -3,7 +3,7 @@ An idempotent `apply` functionality, like `kubectl apply` - but for Astronomer C
 
 Utilizes a `config.yaml` and a GraphQL API to apply a configuration.
 
-*NOTE:* This could is maintained separately from the APIs it utilizes. 
+*NOTE:* This code is maintained separately from the APIs it utilizes. 
 There is no guarantee it will continue to work, nor be fixed promptly if it stops working
 
 # Installation
